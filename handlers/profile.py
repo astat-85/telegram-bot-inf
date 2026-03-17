@@ -54,6 +54,11 @@ async def cmd_profile(message: Message):
     """Показ профиля или предложение заполнить"""
     user_id = message.from_user.id
     
+    global profile_db
+    if profile_db is None:
+        await message.answer("❌ Ошибка инициализации профиля. Попробуйте позже.")
+        return
+    
     # Проверяем подписку
     if not await check_subscription_wrapper(user_id):
         await message.answer(
