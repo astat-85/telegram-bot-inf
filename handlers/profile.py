@@ -35,7 +35,7 @@ class ProfileForm(StatesGroup):
 
 # Роутер для профиля
 router = Router()
-profile_db = ProfileDB()
+profile_db = None
 city_db = CityDatabase()
 
 async def check_subscription_wrapper(user_id: int) -> bool:
