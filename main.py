@@ -1031,6 +1031,9 @@ class Database:
             pass
 
 db = Database()
+if not db.conn:
+    db._connect()
+    print("✅ Соединение с БД создано принудительно")
 
 # ========== ИНИЦИАЛИЗАЦИЯ МОДУЛЕЙ ПРОФИЛЯ ==========
 profile_db = ProfileDB(db)
