@@ -1035,6 +1035,37 @@ if not db.conn:
     db._connect()
     print("✅ Соединение с БД создано принудительно")
 
+# ========== ФУНКЦИЯ ПРОВЕРКИ ПОДПИСКИ ==========
+async def check_subscription(user_id: int) -> bool:
+    """
+    Проверяет, подписан ли пользователь на целевую группу
+    Возвращает True если подписан, False если нет
+    """
+    global _check_subscription_func
+    _check_subscription_func = check_subscription
+    
+    if not TARGET_CHAT_ID:
+        # Если группа не настроена - разрешаем доступ
+        print("⚠️ TARGET_CHAT_ID не настроен, проверка подписки отключена")
+        return True
+        
+    try:
+        # Получаем информацию о пользователе в чате
+        member = await bot.get_chat_member(chat_id=TARGET_CHAT_ID, user_id=user_id)
+        
+        # Статусы, которые считаются "подпиской"
+        if member.status in ['creator', 'administrator', 'member']:
+            print(f"✅ Пользователь {user_id} подписан на группу")
+            return True
+        else:
+            print(f"❌ Пользователь {user_id} НЕ подписан на группу")
+            return False
+            
+    except Exception as e:
+        print(f"⚠️ Ошибка проверки подписки: {e}")
+        # В случае ошибки лучше запретить доступ
+        return False
+
 # ========== ИНИЦИАЛИЗАЦИЯ МОДУЛЕЙ ПРОФИЛЯ ==========
 profile_db = ProfileDB(db)
 city_db = CityDatabase()
@@ -1378,37 +1409,6 @@ async def safe_send(obj, text: str, **kwargs):
                         await obj.message.answer(part, **kwargs)
     except Exception as e:
         logger.error(f"Safe send error: {e}")
-
-# ========== ФУНКЦИЯ ПРОВЕРКИ ПОДПИСКИ ==========
-async def check_subscription(user_id: int) -> bool:
-    """
-    Проверяет, подписан ли пользователь на целевую группу
-    Возвращает True если подписан, False если нет
-    """
-    global _check_subscription_func
-    _check_subscription_func = check_subscription
-    
-    if not TARGET_CHAT_ID:
-        # Если группа не настроена - разрешаем доступ
-        print("⚠️ TARGET_CHAT_ID не настроен, проверка подписки отключена")
-        return True
-        
-    try:
-        # Получаем информацию о пользователе в чате
-        member = await bot.get_chat_member(chat_id=TARGET_CHAT_ID, user_id=user_id)
-        
-        # Статусы, которые считаются "подпиской"
-        if member.status in ['creator', 'administrator', 'member']:
-            print(f"✅ Пользователь {user_id} подписан на группу")
-            return True
-        else:
-            print(f"❌ Пользователь {user_id} НЕ подписан на группу")
-            return False
-            
-    except Exception as e:
-        print(f"⚠️ Ошибка проверки подписки: {e}")
-        # В случае ошибки лучше запретить доступ
-        return False
 
 # ========== КОМАНДЫ ==========
 @router.message(Command("start"))
