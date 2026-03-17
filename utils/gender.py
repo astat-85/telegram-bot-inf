@@ -3,7 +3,7 @@
 """
 import pymorphy2
 import inspect
-from names_dataset import NameDataset, NameWrapper
+from names_dataset import NameDataset
 
 # ПАТЧ ДЛЯ СОВМЕСТИМОСТИ С PYTHON 3.11
 if not hasattr(inspect, 'getargspec'):
@@ -44,13 +44,14 @@ def detect_gender_by_name(name: str) -> str | None:
     # 1️⃣ Сначала проверяем по базе имён
     if NAMES_DB_AVAILABLE and nd:
         try:
-            result: NameWrapper = nd.search(name_clean)
-            if result and result.first_name and result.first_name.gender:
-                gender = result.first_name.gender
-                if gender == 'Male':
+            # В новой версии names-dataset используется другой метод
+            result = nd.search(name_clean)
+            if result and 'first_name' in result:
+                gender = result['first_name'].get('gender')
+                if gender == 'male':
                     print(f"✅ База имён: {name} -> мужской")
                     return 'male'
-                elif gender == 'Female':
+                elif gender == 'female':
                     print(f"✅ База имён: {name} -> женский")
                     return 'female'
         except Exception as e:
