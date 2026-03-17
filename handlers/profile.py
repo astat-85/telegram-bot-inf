@@ -24,7 +24,9 @@ from cities.city_db import CityDatabase
 logger = logging.getLogger(__name__)
 
 # ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
-_check_subscription_func = None  # Будет установлено из main.py
+_check_subscription_func = None
+profile_db = None  # Будет установлено из main.py
+city_db = CityDatabase()
 
 # Состояния FSM для заполнения профиля
 class ProfileForm(StatesGroup):
@@ -35,8 +37,6 @@ class ProfileForm(StatesGroup):
 
 # Роутер для профиля
 router = Router()
-profile_db = None
-city_db = CityDatabase()
 
 async def check_subscription_wrapper(user_id: int) -> bool:
     """Обертка для проверки подписки"""
@@ -52,9 +52,11 @@ async def check_subscription_wrapper(user_id: int) -> bool:
 @router.message(F.text == "👤 Мой профиль")
 async def cmd_profile(message: Message):
     """Показ профиля или предложение заполнить"""
+    global profile_db
+    
     user_id = message.from_user.id
     
-    global profile_db
+    # Проверяем, что profile_db инициализирован
     if profile_db is None:
         await message.answer("❌ Ошибка инициализации профиля. Попробуйте позже.")
         return
@@ -358,6 +360,8 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
 @router.message(ProfileForm.waiting_for_birthday)
 async def process_birthday(message: Message, state: FSMContext):
     """Обработка введенной даты рождения"""
+    global profile_db
+    
     text = message.text.strip()
     
     if text == "⏭ Пропустить":
@@ -368,6 +372,10 @@ async def process_birthday(message: Message, state: FSMContext):
         # Сохраняем профиль
         user_id = message.from_user.id
         username = message.from_user.username or f"user_{user_id}"
+        
+        if profile_db is None:
+            await message.answer("❌ Ошибка инициализации профиля. Попробуйте позже.")
+            return
         
         profile_db.save_profile(user_id, username, profile_data)
         
@@ -415,6 +423,10 @@ async def process_birthday(message: Message, state: FSMContext):
     user_id = message.from_user.id
     username = message.from_user.username or f"user_{user_id}"
     
+    if profile_db is None:
+        await message.answer("❌ Ошибка инициализации профиля. Попробуйте позже.")
+        return
+    
     profile_db.save_profile(user_id, username, profile_data)
     
     # Показываем готовый профиль
@@ -430,6 +442,15 @@ async def process_birthday(message: Message, state: FSMContext):
 async def profile_view(callback: CallbackQuery):
     """Просмотр профиля"""
     await callback.answer()
+    
+    global profile_db
+    
+    if profile_db is None:
+        await callback.message.edit_text(
+            "❌ Ошибка инициализации профиля. Попробуйте позже.",
+            reply_markup=get_profile_menu_keyboard(has_profile=False)
+        )
+        return
     
     profile = profile_db.get_profile(callback.from_user.id)
     
