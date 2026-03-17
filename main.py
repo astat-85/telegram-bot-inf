@@ -1043,7 +1043,6 @@ city_db = CityDatabase()
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 router = Router()
-dp.include_router(router)
 
 # ========== ПОДКЛЮЧЕНИЕ РОУТЕРА ПРОФИЛЯ ==========
 dp.include_router(profile.router)
