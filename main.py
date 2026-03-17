@@ -1044,13 +1044,21 @@ from handlers.profile import profile_db as profile_db_global
 profile_db_global = profile_db
 print("✅ Экземпляр ProfileDB передан в handlers.profile")
 
+# ========== ПЕРЕДАЁМ ФУНКЦИЮ ПРОВЕРКИ ПОДПИСКИ В ПРОФИЛЬ ==========
+from handlers.profile import _check_subscription_func
+_check_subscription_func = check_subscription
+print("✅ Функция проверки подписки передана в profile.py")
+
 # ========== FSM ==========
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
+# ========== СОЗДАЁМ РОУТЕР ДЛЯ ОСНОВНЫХ КОМАНД ==========
+router = Router()  # ← ВОТ ЭТО НУЖНО ДОБАВИТЬ!
+
 # ========== ПОДКЛЮЧЕНИЕ РОУТЕРОВ ==========
 dp.include_router(profile.router)  # Роутер из profile.py
-dp.include_router(router)
+dp.include_router(router)          # Роутер из main.py
 
 class EditState(StatesGroup):
     waiting_field_value = State()
