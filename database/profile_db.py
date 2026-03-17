@@ -3,16 +3,39 @@
 """
 import sqlite3
 import threading
+import time
 from datetime import datetime
 from typing import Optional, Dict, Any, List
+from pathlib import Path
+import os
 
-from main import DB_NAME, Database, retry_on_db_lock
+# ========== ФУНКЦИЯ RETRY ==========
+def retry_on_db_lock(max_retries=3, delay=0.1):
+    """Декоратор для повторных попыток при блокировке БД"""
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except sqlite3.OperationalError as e:
+                    if 'database is locked' in str(e) and attempt < max_retries - 1:
+                        time.sleep(delay * (attempt + 1))
+                        continue
+                    raise
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 class ProfileDB:
-    def __init__(self, db: Database = None):
-        self.db = db or Database(DB_NAME)
+    def __init__(self, db=None):
+        """
+        Инициализация с возможностью передачи готового Database объекта
+        Если db не передан - класс будет работать только через переданный объект
+        """
+        self.db = db
         self.lock = threading.RLock()
-        self._create_tables()
+        if db:
+            self._create_tables()
     
     def _create_tables(self):
         """Создает таблицу профилей, если её нет"""
@@ -49,6 +72,9 @@ class ProfileDB:
         """
         Сохраняет или обновляет профиль пользователя
         """
+        if not self.db:
+            raise ValueError("Database object not provided")
+            
         with self.lock:
             try:
                 # Проверяем существование
@@ -131,6 +157,9 @@ class ProfileDB:
         """
         Получает профиль пользователя
         """
+        if not self.db:
+            raise ValueError("Database object not provided")
+            
         with self.lock:
             try:
                 self.db._execute(
@@ -148,6 +177,9 @@ class ProfileDB:
         """
         Удаляет профиль пользователя
         """
+        if not self.db:
+            raise ValueError("Database object not provided")
+            
         with self.lock:
             try:
                 self.db._execute(
@@ -165,6 +197,9 @@ class ProfileDB:
         """
         Получает все профили (для админов)
         """
+        if not self.db:
+            raise ValueError("Database object not provided")
+            
         with self.lock:
             try:
                 self.db._execute(
@@ -179,6 +214,9 @@ class ProfileDB:
         """
         Статистика по профилям
         """
+        if not self.db:
+            raise ValueError("Database object not provided")
+            
         with self.lock:
             try:
                 self.db._execute("SELECT COUNT(*) FROM user_profiles")
