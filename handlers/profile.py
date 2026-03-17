@@ -37,10 +37,15 @@ city_db = CityDatabase()
 
 # Вспомогательная функция для проверки подписки
 async def check_subscription_wrapper(user_id: int) -> bool:
-    """Обертка для проверки подписки (переиспользуем из main)"""
-    # TODO: импортировать функцию check_subscription из main или передавать как параметр
-    from main import check_subscription
-    return await check_subscription(user_id)
+    """Обертка для проверки подписки"""
+    # Вместо импорта из main, используем глобальную переменную
+    global _check_subscription_func
+    
+    if _check_subscription_func is None:
+        print("⚠️ Функция проверки подписки не установлена")
+        return True
+    
+    return await _check_subscription_func(user_id)
 
 @router.message(Command("profile"))
 @router.message(F.text == "👤 Мой профиль")
