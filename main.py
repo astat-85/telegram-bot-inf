@@ -107,13 +107,13 @@ try:
     from aiogram.types.error_event import ErrorEvent
     from aiogram.enums import ParseMode
     
-# ========== НОВЫЕ ИМПОРТЫ ДЛЯ ПРОФИЛЯ ==========
-from handlers import profile
-from database.profile_db import ProfileDB
-from cities.city_db import CityDatabase
+    # ========== НОВЫЕ ИМПОРТЫ ДЛЯ ПРОФИЛЯ ==========
+    from handlers import profile
+    from database.profile_db import ProfileDB
+    from cities.city_db import CityDatabase
 
-# ========== ГЛОБАЛЬНЫЕ ССЫЛКИ ==========
-_check_subscription_func = None
+    # ========== ГЛОБАЛЬНЫЕ ССЫЛКИ ==========
+    _check_subscription_func = None
 
     import aiogram
     if aiogram.__version__.startswith('3'):
