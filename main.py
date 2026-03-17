@@ -1071,13 +1071,12 @@ profile_db = ProfileDB(db)
 city_db = CityDatabase()
 
 # ========== ПЕРЕДАЁМ ЭКЗЕМПЛЯР PROFILE_DB В МОДУЛЬ ПРОФИЛЯ ==========
-from handlers.profile import profile_db as profile_db_global
-profile_db_global = profile_db
+import handlers.profile
+handlers.profile.profile_db = profile_db  # ← ПРЯМОЕ ПРИСВОЕНИЕ
 print("✅ Экземпляр ProfileDB передан в handlers.profile")
 
 # ========== ПЕРЕДАЁМ ФУНКЦИЮ ПРОВЕРКИ ПОДПИСКИ В ПРОФИЛЬ ==========
-from handlers.profile import _check_subscription_func
-_check_subscription_func = check_subscription
+handlers.profile._check_subscription_func = check_subscription
 print("✅ Функция проверки подписки передана в profile.py")
 
 # ========== FSM ==========
