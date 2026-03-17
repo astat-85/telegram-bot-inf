@@ -2,7 +2,23 @@
 Определение пола по имени через pymorphy2
 """
 import pymorphy2
+import inspect
+import functools
 
+# ПАТЧ ДЛЯ СОВМЕСТИМОСТИ С PYTHON 3.11
+if not hasattr(inspect, 'getargspec'):
+    def getargspec_patch(func):
+        import inspect
+        spec = inspect.getfullargspec(func)
+        return inspect.ArgSpec(
+            args=spec.args,
+            varargs=spec.varargs,
+            keywords=spec.varkw,
+            defaults=spec.defaults
+        )
+    inspect.getargspec = getargspec_patch
+
+# Теперь создаем анализатор
 morph = pymorphy2.MorphAnalyzer(lang='ru')
 
 def detect_gender_by_name(name: str) -> str | None:
