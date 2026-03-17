@@ -9,76 +9,83 @@ def parse_birthday(text: str) -> Optional[Tuple[int, int, Optional[int]]]:
     """
     Парсит дату рождения из текста
     Поддерживает форматы:
-    - 15.03
-    - 15.03.1990
-    - 15 марта
-    - 15 марта 1990
-    - 15/03/1990
+    - ДДММ (например 1503)
+    - ДДММГГ (например 150390)
+    - ДДММГГГГ (например 15031990)
+    - ДД.ММ
+    - ДД.ММ.ГГГГ
+    - ДД.ММ.ГГ
+    - ДД месяц
+    - ДД месяц ГГГГ
+    - ДД месяц ГГ
     
     Возвращает (день, месяц, год) или None
     Год может быть None, если не указан
     """
-    text = text.strip().lower()
+    text = text.strip().replace(' ', '')
     
-    # Паттерны для разных форматов
-    patterns = [
-        # ДД.ММ.ГГГГ или ДД.ММ
-        r'^(\d{1,2})[./](\d{1,2})(?:[./](\d{4}))?$',
+    # Паттерн для формата ДДММ, ДДММГГ, ДДММГГГГ
+    match = re.match(r'^(\d{2})(\d{2})(\d{2,4})?$', text)
+    if match:
+        day = int(match.group(1))
+        month = int(match.group(2))
+        year_str = match.group(3)
         
-        # ДД месяц ГГГГ или ДД месяц
-        r'^(\d{1,2})\s+([а-я]+)(?:\s+(\d{4}))?$',
-    ]
-    
-    # Русские названия месяцев
-    months = {
-        'января': 1, 'янв': 1,
-        'февраля': 2, 'фев': 2,
-        'марта': 3, 'мар': 3,
-        'апреля': 4, 'апр': 4,
-        'мая': 5, 'май': 5,
-        'июня': 6, 'июн': 6,
-        'июля': 7, 'июл': 7,
-        'августа': 8, 'авг': 8,
-        'сентября': 9, 'сен': 9,
-        'октября': 10, 'окт': 10,
-        'ноября': 11, 'ноя': 11,
-        'декабря': 12, 'дек': 12,
-    }
-    
-    for pattern in patterns:
-        match = re.match(pattern, text)
-        if not match:
-            continue
+        # Валидация дня и месяца
+        if not (1 <= day <= 31) or not (1 <= month <= 12):
+            return None
         
-        groups = match.groups()
-        
-        if pattern == patterns[0]:  # Числовой формат
-            day = int(groups[0])
-            month = int(groups[1])
-            year = int(groups[2]) if groups[2] else None
+        if year_str:
+            if len(year_str) == 2:
+                # ДДММГГ - определяем век
+                year = int(year_str)
+                current_year = datetime.now().year
+                current_century = current_year // 100
+                
+                # Если год больше текущего двухзначного года - это прошлый век
+                if year > current_year % 100:
+                    year = (current_century - 1) * 100 + year
+                else:
+                    year = current_century * 100 + year
+            else:
+                year = int(year_str)
             
-        else:  # Текстовый формат с месяцем
-            day = int(groups[0])
-            month_name = groups[1]
-            year = int(groups[2]) if groups[2] else None
-            
-            # Ищем месяц в словаре
-            month = None
-            for name, num in months.items():
-                if month_name.startswith(name[:3]):  # Сравниваем по первым 3 буквам
-                    month = num
-                    break
-            
-            if not month:
+            # Проверка на разумный возраст (10-90 лет)
+            age = datetime.now().year - year
+            if age < 10 or age > 90:
                 return None
+        else:
+            year = None
         
-        # Базовая валидация
-        if not (1 <= day <= 31):
+        return (day, month, year)
+    
+    # Формат с точками ДД.ММ или ДД.ММ.ГГГГ
+    match = re.match(r'^(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?$', text)
+    if match:
+        day = int(match.group(1))
+        month = int(match.group(2))
+        year_str = match.group(3)
+        
+        if not (1 <= day <= 31) or not (1 <= month <= 12):
             return None
-        if not (1 <= month <= 12):
-            return None
-        if year and (year < 1900 or year > datetime.now().year):
-            return None
+        
+        if year_str:
+            if len(year_str) == 2:
+                year = int(year_str)
+                current_year = datetime.now().year
+                current_century = current_year // 100
+                if year > current_year % 100:
+                    year = (current_century - 1) * 100 + year
+                else:
+                    year = current_century * 100 + year
+            else:
+                year = int(year_str)
+            
+            age = datetime.now().year - year
+            if age < 10 or age > 90:
+                return None
+        else:
+            year = None
         
         return (day, month, year)
     
