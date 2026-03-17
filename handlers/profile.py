@@ -24,7 +24,7 @@ from cities.city_db import CityDatabase
 logger = logging.getLogger(__name__)
 
 # ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
-_check_subscription_func = None
+_check_subscription_func = None  # Будет установлено из main.py
 
 # Состояния FSM для заполнения профиля
 class ProfileForm(StatesGroup):
@@ -39,16 +39,12 @@ profile_db = ProfileDB()
 city_db = CityDatabase()
 
 async def check_subscription_wrapper(user_id: int) -> bool:
-    """Обертка для проверки подписки (переиспользуем из main)"""
+    """Обертка для проверки подписки"""
     global _check_subscription_func
     
     if _check_subscription_func is None:
-        try:
-            from main import check_subscription
-            _check_subscription_func = check_subscription
-        except ImportError:
-            print("⚠️ Не удалось импортировать check_subscription из main")
-            return True
+        print("⚠️ Функция проверки подписки не установлена, разрешаем доступ")
+        return True
     
     return await _check_subscription_func(user_id)
 
@@ -157,6 +153,9 @@ async def start_profile_fill(callback: CallbackQuery, state: FSMContext):
         reply_markup=get_skip_keyboard()
     )
     await state.set_state(ProfileForm.waiting_for_name)
+
+# ... ВЕСЬ ОСТАЛЬНОЙ КОД ФАЙЛА ОСТАЁТСЯ БЕЗ ИЗМЕНЕНИЙ ...
+# (все функции после этого места остаются как есть)
 
 @router.message(ProfileForm.waiting_for_name)
 async def process_name(message: Message, state: FSMContext):
