@@ -1,64 +1,78 @@
 """
-Определение пола по имени через pymorphy2
+Определение пола по имени через names-dataset и pymorphy2
 """
 import pymorphy2
 import inspect
-import functools
+from names_dataset import NameDataset, NameWrapper
 
 # ПАТЧ ДЛЯ СОВМЕСТИМОСТИ С PYTHON 3.11
 if not hasattr(inspect, 'getargspec'):
     def getargspec_patch(func):
-        """
-        Замена устаревшему inspect.getargspec
-        для совместимости с Python 3.11+
-        """
         spec = inspect.getfullargspec(func)
-        # Возвращаем объект, похожий на старый ArgSpec
-        return spec  # Просто возвращаем fullargspec, он работает так же
-
+        return spec
     inspect.getargspec = getargspec_patch
 
-# Теперь создаем анализатор
+# Загружаем базу имён (первый раз скачается ~50мб)
+try:
+    nd = NameDataset()
+    NAMES_DB_AVAILABLE = True
+    print("✅ База имён загружена")
+except Exception as e:
+    print(f"⚠️ Ошибка загрузки базы имён: {e}")
+    NAMES_DB_AVAILABLE = False
+    nd = None
+
+# Pymorphy2 как запасной вариант
 try:
     morph = pymorphy2.MorphAnalyzer(lang='ru')
-    print("✅ pymorphy2 успешно загружен")
+    PYMORPHY_AVAILABLE = True
 except Exception as e:
     print(f"⚠️ Ошибка загрузки pymorphy2: {e}")
-    # Заглушка на случай ошибки
-    class DummyMorph:
-        def parse(self, word):
-            class DummyParse:
-                tag = []
-                def __init__(self):
-                    self.tag = []
-            return [DummyParse()]
-    morph = DummyMorph()
+    PYMORPHY_AVAILABLE = False
+    morph = None
 
 def detect_gender_by_name(name: str) -> str | None:
     """
     Определяет пол по имени
-    Возвращает 'male', 'female' или None, если не удалось определить
+    Возвращает 'male', 'female' или None
     """
     if not name or len(name) < 2:
         return None
     
-    try:
-        parsed = morph.parse(name)[0]
-        
-        # Проверяем, что это имя
-        if hasattr(parsed, 'tag') and 'Name' not in str(parsed.tag):
-            return None
-        
-        if 'masc' in str(parsed.tag):
-            return 'male'
-        elif 'femn' in str(parsed.tag):
-            return 'female'
-    except Exception as e:
-        print(f"⚠️ Ошибка определения пола: {e}")
-        # Запасной вариант - определяем по окончанию
-        if name.endswith(('а', 'я')):
-            return 'female'
-        else:
-            return 'male'
+    name_clean = name.strip().capitalize()
     
-    return None
+    # 1️⃣ Сначала проверяем по базе имён
+    if NAMES_DB_AVAILABLE and nd:
+        try:
+            result: NameWrapper = nd.search(name_clean)
+            if result and result.first_name and result.first_name.gender:
+                gender = result.first_name.gender
+                if gender == 'Male':
+                    print(f"✅ База имён: {name} -> мужской")
+                    return 'male'
+                elif gender == 'Female':
+                    print(f"✅ База имён: {name} -> женский")
+                    return 'female'
+        except Exception as e:
+            print(f"⚠️ Ошибка поиска в базе имён: {e}")
+    
+    # 2️⃣ Запасной вариант: pymorphy2
+    if PYMORPHY_AVAILABLE and morph:
+        try:
+            parsed = morph.parse(name.lower())[0]
+            if 'masc' in parsed.tag:
+                print(f"✅ pymorphy2: {name} -> мужской")
+                return 'male'
+            elif 'femn' in parsed.tag:
+                print(f"✅ pymorphy2: {name} -> женский")
+                return 'female'
+        except:
+            pass
+    
+    # 3️⃣ Самый запасной вариант - по окончанию
+    if name.lower().endswith(('а', 'я')):
+        print(f"⚠️ По окончанию: {name} -> женский")
+        return 'female'
+    else:
+        print(f"⚠️ По окончанию (умолчание): {name} -> мужской")
+        return 'male'
