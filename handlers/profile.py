@@ -23,6 +23,9 @@ from cities.city_db import CityDatabase
 
 logger = logging.getLogger(__name__)
 
+# ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
+_check_subscription_func = None
+
 # Состояния FSM для заполнения профиля
 class ProfileForm(StatesGroup):
     waiting_for_name = State()          # Ожидание ФИО
@@ -35,15 +38,17 @@ router = Router()
 profile_db = ProfileDB()
 city_db = CityDatabase()
 
-# Вспомогательная функция для проверки подписки
 async def check_subscription_wrapper(user_id: int) -> bool:
-    """Обертка для проверки подписки"""
-    # Вместо импорта из main, используем глобальную переменную
+    """Обертка для проверки подписки (переиспользуем из main)"""
     global _check_subscription_func
     
     if _check_subscription_func is None:
-        print("⚠️ Функция проверки подписки не установлена")
-        return True
+        try:
+            from main import check_subscription
+            _check_subscription_func = check_subscription
+        except ImportError:
+            print("⚠️ Не удалось импортировать check_subscription из main")
+            return True
     
     return await _check_subscription_func(user_id)
 
