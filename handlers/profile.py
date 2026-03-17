@@ -8,7 +8,7 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import Message, CallbackQuery
 
 from database.profile_db import ProfileDB
 from utils.gender import detect_gender_by_name
@@ -154,9 +154,6 @@ async def start_profile_fill(callback: CallbackQuery, state: FSMContext):
     )
     await state.set_state(ProfileForm.waiting_for_name)
 
-# ... ВЕСЬ ОСТАЛЬНОЙ КОД ФАЙЛА ОСТАЁТСЯ БЕЗ ИЗМЕНЕНИЙ ...
-# (все функции после этого места остаются как есть)
-
 @router.message(ProfileForm.waiting_for_name)
 async def process_name(message: Message, state: FSMContext):
     """Обработка введенного ФИО"""
@@ -205,7 +202,8 @@ async def process_name(message: Message, state: FSMContext):
         "🏙 <b>Город</b>\n\n"
         "Введите ваш город (необязательно).\n"
         "Если укажете город, часовой пояс определится автоматически.\n\n"
-        "Или нажмите <b>⏭ Пропустить</b> (будет установлен МСК)."
+        "Или нажмите <b>⏭ Пропустить</b> (будет установлен МСК).",
+        reply_markup=get_skip_keyboard()
     )
     await state.set_state(ProfileForm.waiting_for_city)
 
@@ -230,7 +228,8 @@ async def process_city(message: Message, state: FSMContext):
             "• <i>15.03</i>\n"
             "• <i>15.03.1990</i>\n"
             "• <i>15 марта</i>\n"
-            "• <i>15 марта 1990</i>"
+            "• <i>15 марта 1990</i>",
+            reply_markup=get_skip_keyboard()
         )
         await state.set_state(ProfileForm.waiting_for_birthday)
         return
@@ -277,7 +276,8 @@ async def process_city(message: Message, state: FSMContext):
             "• <i>15.03</i>\n"
             "• <i>15.03.1990</i>\n"
             "• <i>15 марта</i>\n"
-            "• <i>15 марта 1990</i>"
+            "• <i>15 марта 1990</i>",
+            reply_markup=get_skip_keyboard()
         )
         await state.set_state(ProfileForm.waiting_for_birthday)
     else:
@@ -292,11 +292,11 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора города из списка"""
     await callback.answer()
     
-    data = callback.data.split('_', 2)
-    if len(data) < 2:
+    parts = callback.data.split('_')
+    if len(parts) < 2:
         return
     
-    action = data[1]
+    action = parts[1]
     
     if action == "retry":
         # Ввести заново
@@ -327,16 +327,13 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
         await state.set_state(ProfileForm.waiting_for_birthday)
         return
     
-    # Выбран конкретный город
-    # Формат: city_{name}_{region}
-    # Но там могут быть символы, поэтому используем join
-    city_data = callback.data[5:]  # убираем "city_"
+    # Выбран конкретный город (city_name_region)
+    city_name = parts[2] if len(parts) > 2 else ""
+    region = parts[3] if len(parts) > 3 else ""
     
     # Ищем город в БД
-    cities = city_db.search(city_data.split(',')[0])
-    if cities:
-        city = cities[0]  # берем первый (пользователь выбрал)
-        
+    city = city_db.get_city_by_name_and_region(city_name, region)
+    if city:
         state_data = await state.get_data()
         profile_data = state_data.get('profile_data', {})
         profile_data['city'] = city['name']
@@ -463,21 +460,24 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
     
     if field == "name":
         await callback.message.edit_text(
-            "✏️ Введите новое ФИО:"
+            "✏️ Введите новое ФИО:",
+            reply_markup=get_skip_keyboard()
         )
         await state.set_state(ProfileForm.waiting_for_name)
         await state.update_data(edit_mode=True)
     
     elif field == "city":
         await callback.message.edit_text(
-            "✏️ Введите новый город:"
+            "✏️ Введите новый город:",
+            reply_markup=get_skip_keyboard()
         )
         await state.set_state(ProfileForm.waiting_for_city)
         await state.update_data(edit_mode=True)
     
     elif field == "birthday":
         await callback.message.edit_text(
-            "✏️ Введите новую дату рождения:"
+            "✏️ Введите новую дату рождения:",
+            reply_markup=get_skip_keyboard()
         )
         await state.set_state(ProfileForm.waiting_for_birthday)
         await state.update_data(edit_mode=True)
