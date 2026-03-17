@@ -1039,6 +1039,11 @@ if not db.conn:
 profile_db = ProfileDB(db)
 city_db = CityDatabase()
 
+# ========== ПЕРЕДАЁМ ЭКЗЕМПЛЯР PROFILE_DB В МОДУЛЬ ПРОФИЛЯ ==========
+from handlers.profile import profile_db as profile_db_global
+profile_db_global = profile_db
+print("✅ Экземпляр ProfileDB передан в handlers.profile")
+
 # ========== FSM ==========
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
