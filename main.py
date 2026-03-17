@@ -1047,10 +1047,10 @@ print("✅ Экземпляр ProfileDB передан в handlers.profile")
 # ========== FSM ==========
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
-router = Router()
 
-# ========== ПОДКЛЮЧЕНИЕ РОУТЕРА ПРОФИЛЯ ==========
-dp.include_router(profile.router)
+# ========== ПОДКЛЮЧЕНИЕ РОУТЕРОВ ==========
+dp.include_router(profile.router)  # Роутер из profile.py
+dp.include_router(router)
 
 class EditState(StatesGroup):
     waiting_field_value = State()
