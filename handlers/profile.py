@@ -191,7 +191,7 @@ def format_profile(profile: dict) -> str:
     text = (
         f"👤 <b>Мой профиль</b>\n\n"
         f"<b>Имя:</b> {full_name}\n"
-        f"<b>Пол:</b> {gender_text}\n"
+        f"<b>Пол:</b} {gender_text}\n"
         f"<b>Дата рождения:</b> {birth}\n"
         f"<b>Город:</b> {location}\n"
         f"<b>Часовой пояс:</b> {timezone_display}\n\n"
@@ -411,9 +411,7 @@ async def process_city(message: Message, state: FSMContext):
             # Получаем текущий профиль
             current_profile = profile_db.get_profile(user_id)
             if current_profile:
-                # Обновляем только город
-                current_profile['city'] = profile_data['city']
-                current_profile['region'] = profile_data['region']
+                # Обновляем ТОЛЬКО часовой пояс (город не трогаем!)
                 current_profile['timezone'] = profile_data['timezone']
                 current_profile['location_manually_set'] = profile_data['location_manually_set']
         
@@ -423,7 +421,6 @@ async def process_city(message: Message, state: FSMContext):
                 profile_db.save_profile(user_id, username, profile_data)
                 profile = profile_db.get_profile(user_id)
             
-        
             await message.answer(
                 "✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile),
                 reply_markup=get_profile_menu_keyboard(has_profile=True),
@@ -958,18 +955,13 @@ async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
     print(f"\n🔴🔴🔴 edit_gender_choice ВЫЗВАНА! 🔴🔴🔴")
     print(f"🔴 callback.data = '{callback.data}'")
     print(f"🔴 user_id = {callback.from_user.id}")
-    print(f"🔴 is_admin = {is_admin(callback.from_user.id)}")
     print("🔴" * 30)
     
     await callback.answer()
     
     global profile_db
     
-    print(f"🔍 edit_gender_choice: {callback.data}")  # ОТЛАДКА
-    print(f"🔍 user_id: {callback.from_user.id}")     # ОТЛАДКА
-    
     choice = callback.data.replace("edit_gender_", "")
-    print(f"🔍 choice: {choice}")  # ОТЛАДКА
     
     if choice == "male":
         gender = 'male'
@@ -978,7 +970,6 @@ async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
         gender = 'female'
         gender_text = "женский"
     else:
-        print(f"❌ Неверный выбор: {choice}")  # ОТЛАДКА
         await callback.message.edit_text(
             "❌ Неверный выбор",
             reply_markup=get_profile_menu_keyboard(has_profile=True)
@@ -990,14 +981,11 @@ async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
     profile = profile_db.get_profile(user_id)
     
     if not profile:
-        print(f"❌ Профиль не найден для user_id: {user_id}")  # ОТЛАДКА
         await callback.message.edit_text(
             "❌ Профиль не найден",
             reply_markup=get_profile_menu_keyboard(has_profile=False)
         )
         return
-    
-    print(f"✅ Текущий профиль: {profile}")  # ОТЛАДКА
     
     # Обновляем пол
     profile['gender'] = gender
@@ -1008,8 +996,6 @@ async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
     
     # Получаем обновлённый профиль для отображения
     updated_profile = profile_db.get_profile(user_id)
-    
-    print(f"✅ Профиль обновлён, пол: {updated_profile.get('gender')}")  # ОТЛАДКА
     
     # Показываем обновлённый профиль
     await callback.message.edit_text(
