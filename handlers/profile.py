@@ -302,16 +302,14 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
     
     # Обработка служебных кнопок
     if data == "city_retry":
-        # При повторном вводе отправляем НОВОЕ сообщение, а не редактируем старое
         await callback.message.delete()
         await callback.message.answer(
             "🏰 Введите название города:",
-            reply_markup=get_skip_keyboard()  # ← Это ReplyKeyboardMarkup - можно
+            reply_markup=get_skip_keyboard()
         )
         return
     
     if data == "city_skip":
-        # Пропустить (МСК)
         state_data = await state.get_data()
         profile_data = state_data.get('profile_data', {})
         profile_data['timezone'] = 'Europe/Moscow'
@@ -319,7 +317,6 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
         
         await state.update_data(profile_data=profile_data)
         
-        # Удаляем старое сообщение и отправляем новое
         await callback.message.delete()
         await callback.message.answer(
             "📅 <b>Дата рождения</b>\n\n"
@@ -327,26 +324,41 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
             "• ДДММ (1503)\n"
             "• ДДММГГГГ (15031990)\n"
             "• ДД.ММ.ГГГГ (15.03.1990)",
-            reply_markup=get_skip_keyboard()  # ← Это ReplyKeyboardMarkup - можно
+            reply_markup=get_skip_keyboard()
         )
         await state.set_state(ProfileForm.waiting_for_birthday)
         return
     
     # Обработка выбора конкретного города
-    # Формат: city_название_регион
-    parts = data.split('_')
-    if len(parts) < 2:
-        return
-    
-    # Пытаемся восстановить название города из callback_data
-    # Пропускаем первый элемент "city", остальное - название и регион
-    if len(parts) >= 3:
-        # Последняя часть - регион, остальное - название города
-        region = parts[-1]
-        city_name = ' '.join(parts[1:-1]).replace('_', ' ')
+    try:
+        # Разбираем callback_data: city_название_регион
+        # Убираем префикс "city_"
+        city_part = data[5:]  # всё после "city_"
+        
+        # Разделяем по последнему подчёркиванию
+        last_underscore = city_part.rfind('_')
+        if last_underscore == -1:
+            raise ValueError("Неверный формат callback_data")
+        
+        region = city_part[last_underscore + 1:]
+        city_name = city_part[:last_underscore].replace('_', ' ')
+        
+        print(f"🔍 Поиск города: '{city_name}' в регионе '{region}'")
         
         # Ищем город в БД
+        # Сначала пробуем точный поиск
         city = city_db.get_city_by_name_and_region(city_name, region)
+        
+        # Если не нашли, пробуем без учёта регистра
+        if not city:
+            all_cities = city_db.get_all_cities()
+            for c in all_cities:
+                if (c['name'].lower() == city_name.lower() and 
+                    c['region']['name'].lower() == region.lower()):
+                    city = c
+                    print(f"✅ Найдено по нижнему регистру: {c['name']}")
+                    break
+        
         if city:
             state_data = await state.get_data()
             profile_data = state_data.get('profile_data', {})
@@ -357,23 +369,34 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
             
             await state.update_data(profile_data=profile_data)
             
-            # Удаляем старое сообщение и отправляем новое
             await callback.message.delete()
             await callback.message.answer(
                 f"✅ Город: {city['name']}, {city['region']['name']}\n"
                 f"🕒 Часовой пояс: {city['timezone']['tzid']}\n\n"
                 f"📅 Теперь введите дату рождения:",
-                reply_markup=get_skip_keyboard()  # ← ReplyKeyboardMarkup
+                reply_markup=get_skip_keyboard()
             )
             await state.set_state(ProfileForm.waiting_for_birthday)
             return
-    
-    # Если не нашли или формат неправильный
-    await callback.message.delete()
-    await callback.message.answer(
-        "❌ Город не найден. Введите название вручную:",
-        reply_markup=get_skip_keyboard()
-    )
+        else:
+            print(f"❌ Город не найден: '{city_name}' ({region})")
+            # Показываем все города для отладки (можно убрать потом)
+            all_cities = city_db.get_all_cities()[:5]
+            print(f"Примеры городов: {[(c['name'], c['region']['name']) for c in all_cities]}")
+            
+            await callback.message.delete()
+            await callback.message.answer(
+                f"❌ Город '{city_name}' не найден в справочнике.\n"
+                f"Введите название вручную:",
+                reply_markup=get_skip_keyboard()
+            )
+    except Exception as e:
+        print(f"⚠️ Ошибка при выборе города: {e}")
+        await callback.message.delete()
+        await callback.message.answer(
+            "❌ Ошибка при выборе города. Введите название вручную:",
+            reply_markup=get_skip_keyboard()
+        )
     
 @router.message(ProfileForm.waiting_for_birthday)
 async def process_birthday(message: Message, state: FSMContext):
