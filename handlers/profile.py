@@ -230,8 +230,21 @@ async def process_name(message: Message, state: FSMContext):
     text = message.text.strip()
     
     if not text or text == "🚫 Отмена":
-        await message.answer("❌ Заполнение отменено", reply_markup=get_profile_menu_keyboard(has_profile=False))
-        await state.clear()
+        # Проверяем, в режиме редактирования мы или нет
+        data = await state.get_data()
+        edit_mode = data.get('edit_mode', False)
+        
+        if edit_mode:
+            # Если в режиме редактирования - возвращаемся к просмотру профиля
+            await state.clear()
+            await cmd_profile(message)  # Показываем профиль
+        else:
+            # Если создание нового профиля - просто отменяем
+            await state.clear()
+            await message.answer(
+                "❌ Заполнение отменено",
+                reply_markup=get_profile_menu_keyboard(has_profile=False)
+            )
         return
     
     # Разбиваем ФИО на части
@@ -322,12 +335,21 @@ async def gender_choice_callback(callback: CallbackQuery, state: FSMContext):
     choice = callback.data.replace("gender_", "")
     
     if choice == "cancel":
+        data = await state.get_data()
+        edit_mode = data.get('edit_mode', False)
+        
         await callback.message.delete()
-        await callback.message.answer(
-            "❌ Заполнение отменено",
-            reply_markup=get_profile_menu_keyboard(has_profile=False)
-        )
-        await state.clear()
+        
+        if edit_mode:
+            await state.clear()
+            # Показываем профиль
+            await cmd_profile(callback.message)
+        else:
+            await state.clear()
+            await callback.message.answer(
+                "❌ Заполнение отменено",
+                reply_markup=get_profile_menu_keyboard(has_profile=False)
+            )
         return
     
     # Получаем сохранённые данные
@@ -378,21 +400,50 @@ async def process_city(message: Message, state: FSMContext):
         
         await state.update_data(profile_data=profile_data)
         
-        await message.answer(
-            "📅 <b>Дата рождения</b>\n\n"
-            "Введите дату рождения (число и месяц обязательно, год по желанию).\n\n"
-            "Примеры:\n"
-            "• ДДММ (1503)\n"
-            "• ДДММГГГГ (15031990)\n"
-            "• ДД.ММ.ГГГГ (15.03.1990)",
-            reply_markup=get_skip_keyboard()
-        )
-        await state.set_state(ProfileForm.waiting_for_birthday)
+        # Проверяем, в режиме редактирования мы или нет
+        edit_mode = data.get('edit_mode', False)
+        
+        if edit_mode:
+            # Если редактирование - сохраняем и показываем профиль
+            user_id = message.from_user.id
+            username = message.from_user.username or f"user_{user_id}"
+            
+            profile_db.save_profile(user_id, username, profile_data)
+            
+            profile = profile_db.get_profile(user_id)
+            await message.answer(
+                "✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile),
+                reply_markup=get_profile_menu_keyboard(has_profile=True),
+                parse_mode="HTML"
+            )
+            await state.clear()
+        else:
+            # Если новое создание - переходим к дате рождения
+            await message.answer(
+                "📅 <b>Дата рождения</b>\n\n"
+                "Введите дату рождения (число и месяц обязательно, год по желанию).\n\n"
+                "Примеры:\n"
+                "• ДДММ (1503)\n"
+                "• ДДММГГГГ (15031990)\n"
+                "• ДД.ММ.ГГГГ (15.03.1990)",
+                reply_markup=get_skip_keyboard()
+            )
+            await state.set_state(ProfileForm.waiting_for_birthday)
         return
     
     if text == "🚫 Отмена":
-        await message.answer("❌ Заполнение отменено", reply_markup=get_profile_menu_keyboard(has_profile=False))
-        await state.clear()
+        data = await state.get_data()
+        edit_mode = data.get('edit_mode', False)
+        
+        if edit_mode:
+            await state.clear()
+            await cmd_profile(message)
+        else:
+            await state.clear()
+            await message.answer(
+                "❌ Заполнение отменено",
+                reply_markup=get_profile_menu_keyboard(has_profile=False)
+            )
         return
     
     # Ищем город в справочнике
@@ -424,17 +475,35 @@ async def process_city(message: Message, state: FSMContext):
             f"🕒 Часовой пояс: {format_timezone_offset(city['timezone']['tzid'])}"
         )
         
-        # Переходим к дате рождения
-        await message.answer(
-            "📅 <b>Дата рождения</b>\n\n"
-            "Введите дату рождения (число и месяц обязательно, год по желанию).\n\n"
-            "Примеры:\n"
-            "• ДДММ (1503)\n"
-            "• ДДММГГГГ (15031990)\n"
-            "• ДД.ММ.ГГГГ (15.03.1990)",
-            reply_markup=get_skip_keyboard()
-        )
-        await state.set_state(ProfileForm.waiting_for_birthday)
+        # Проверяем, в режиме редактирования мы или нет
+        edit_mode = data.get('edit_mode', False)
+        
+        if edit_mode:
+            # Если редактирование - сохраняем и показываем профиль
+            user_id = message.from_user.id
+            username = message.from_user.username or f"user_{user_id}"
+            
+            profile_db.save_profile(user_id, username, profile_data)
+            
+            profile = profile_db.get_profile(user_id)
+            await message.answer(
+                "✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile),
+                reply_markup=get_profile_menu_keyboard(has_profile=True),
+                parse_mode="HTML"
+            )
+            await state.clear()
+        else:
+            # Если новое создание - переходим к дате рождения
+            await message.answer(
+                "📅 <b>Дата рождения</b>\n\n"
+                "Введите дату рождения (число и месяц обязательно, год по желанию).\n\n"
+                "Примеры:\n"
+                "• ДДММ (1503)\n"
+                "• ДДММГГГГ (15031990)\n"
+                "• ДД.ММ.ГГГГ (15.03.1990)",
+                reply_markup=get_skip_keyboard()
+            )
+            await state.set_state(ProfileForm.waiting_for_birthday)
     else:
         # Несколько городов - показываем выбор
         await message.answer(
@@ -445,6 +514,8 @@ async def process_city(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("city_"))
 async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора города из списка"""
+    global profile_db
+    
     await callback.answer()
     
     data = callback.data
@@ -529,13 +600,35 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
                 await state.update_data(profile_data=profile_data)
                 
                 await callback.message.delete()
-                await callback.message.answer(
-                    f"✅ Город: {city_name}, {region_name}\n"
-                    f"🕒 Часовой пояс: {format_timezone_offset(timezone)}\n\n"
-                    f"📅 Теперь введите дату рождения:",
-                    reply_markup=get_skip_keyboard()
-                )
-                await state.set_state(ProfileForm.waiting_for_birthday)
+                
+                # Проверяем, в режиме редактирования мы или нет
+                edit_mode = state_data.get('edit_mode', False)
+                
+                if edit_mode:
+                    # Если редактирование - сохраняем и показываем профиль
+                    user_id = callback.from_user.id
+                    username = callback.from_user.username or f"user_{user_id}"
+                    
+                    profile_db.save_profile(user_id, username, profile_data)
+                    
+                    profile = profile_db.get_profile(user_id)
+                    await callback.message.answer(
+                        f"✅ Город: {city_name}, {region_name}\n"
+                        f"🕒 Часовой пояс: {format_timezone_offset(timezone)}\n\n"
+                        f"✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile),
+                        reply_markup=get_profile_menu_keyboard(has_profile=True),
+                        parse_mode="HTML"
+                    )
+                    await state.clear()
+                else:
+                    # Если новое создание - переходим к дате рождения
+                    await callback.message.answer(
+                        f"✅ Город: {city_name}, {region_name}\n"
+                        f"🕒 Часовой пояс: {format_timezone_offset(timezone)}\n\n"
+                        f"📅 Теперь введите дату рождения:",
+                        reply_markup=get_skip_keyboard()
+                    )
+                    await state.set_state(ProfileForm.waiting_for_birthday)
                 return
             else:
                 print(f"❌ ГОРОД НЕ НАЙДЕН, пробуем поиск по названию")
@@ -593,13 +686,35 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
         await state.update_data(profile_data=profile_data)
         
         await callback.message.delete()
-        await callback.message.answer(
-            f"✅ Город: {city['name']}, {city['region']['name']}\n"
-            f"🕒 Часовой пояс: {format_timezone_offset(city['timezone']['tzid'])}\n\n"
-            f"📅 Теперь введите дату рождения:",
-            reply_markup=get_skip_keyboard()
-        )
-        await state.set_state(ProfileForm.waiting_for_birthday)
+        
+        # Проверяем, в режиме редактирования мы или нет
+        edit_mode = state_data.get('edit_mode', False)
+        
+        if edit_mode:
+            # Если редактирование - сохраняем и показываем профиль
+            user_id = callback.from_user.id
+            username = callback.from_user.username or f"user_{user_id}"
+            
+            profile_db.save_profile(user_id, username, profile_data)
+            
+            profile = profile_db.get_profile(user_id)
+            await callback.message.answer(
+                f"✅ Город: {city['name']}, {city['region']['name']}\n"
+                f"🕒 Часовой пояс: {format_timezone_offset(city['timezone']['tzid'])}\n\n"
+                f"✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile),
+                reply_markup=get_profile_menu_keyboard(has_profile=True),
+                parse_mode="HTML"
+            )
+            await state.clear()
+        else:
+            # Если новое создание - переходим к дате рождения
+            await callback.message.answer(
+                f"✅ Город: {city['name']}, {city['region']['name']}\n"
+                f"🕒 Часовой пояс: {format_timezone_offset(city['timezone']['tzid'])}\n\n"
+                f"📅 Теперь введите дату рождения:",
+                reply_markup=get_skip_keyboard()
+            )
+            await state.set_state(ProfileForm.waiting_for_birthday)
     else:
         print(f"❌ Город не найден: {city_name}")
         await callback.message.delete()
@@ -642,8 +757,18 @@ async def process_birthday(message: Message, state: FSMContext):
         return
     
     if text == "🚫 Отмена":
-        await message.answer("❌ Заполнение отменено", reply_markup=get_profile_menu_keyboard(has_profile=False))
-        await state.clear()
+        data = await state.get_data()
+        edit_mode = data.get('edit_mode', False)
+        
+        if edit_mode:
+            await state.clear()
+            await cmd_profile(message)
+        else:
+            await state.clear()
+            await message.answer(
+                "❌ Заполнение отменено",
+                reply_markup=get_profile_menu_keyboard(has_profile=False)
+            )
         return
     
     # Парсим дату
@@ -758,7 +883,7 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
         await state.set_state(ProfileForm.waiting_for_name)
         await state.update_data(edit_mode=True)
     
-    elif field == "gender":  # ← НОВЫЙ БЛОК
+    elif field == "gender":
         # Создаём клавиатуру для выбора пола
         gender_kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="👨 Мужской", callback_data="edit_gender_male")],
