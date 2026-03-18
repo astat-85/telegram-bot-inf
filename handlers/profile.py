@@ -701,32 +701,35 @@ async def process_birthday(message: Message, state: FSMContext):
     
     if text == "⏭ Пропустить":
         data = await state.get_data()
-        profile_data = data.get('profile_data', {})
         edit_mode = data.get('edit_mode', False)
-        
         user_id = message.from_user.id
         username = message.from_user.username or f"user_{user_id}"
         
         if edit_mode:
-            current_profile = profile_db.get_profile(user_id)
-            if current_profile:
-                for key, value in profile_data.items():
-                    if value is not None:
-                        current_profile[key] = value
-                profile_db.save_profile(user_id, username, current_profile)
-                profile = profile_db.get_profile(user_id)
+            # При пропуске в режиме редактирования - просто показываем профиль
+            profile = profile_db.get_profile(user_id)
+            if profile:
+                await message.answer(
+                    "✅ <b>Профиль</b>\n\n" + format_profile(profile),
+                    reply_markup=get_profile_menu_keyboard(has_profile=True),
+                    parse_mode="HTML"
+                )
             else:
-                profile_db.save_profile(user_id, username, profile_data)
-                profile = profile_db.get_profile(user_id)
+                await message.answer(
+                    "❌ Профиль не найден",
+                    reply_markup=get_profile_menu_keyboard(has_profile=False)
+                )
         else:
+            # При пропуске в новом профиле - сохраняем без даты
+            profile_data = data.get('profile_data', {})
             profile_db.save_profile(user_id, username, profile_data)
             profile = profile_db.get_profile(user_id)
+            await message.answer(
+                "✅ <b>Профиль сохранен!</b>\n\n" + format_profile(profile),
+                reply_markup=get_profile_menu_keyboard(has_profile=True),
+                parse_mode="HTML"
+            )
         
-        await message.answer(
-            "✅ <b>Профиль сохранен!</b>\n\n" + format_profile(profile),
-            reply_markup=get_profile_menu_keyboard(has_profile=True),
-            parse_mode="HTML"
-        )
         await state.clear()
         return
     
@@ -745,6 +748,7 @@ async def process_birthday(message: Message, state: FSMContext):
             )
         return
     
+    # Парсим дату
     parsed = parse_birthday(text)
     
     if not parsed:
@@ -762,59 +766,72 @@ async def process_birthday(message: Message, state: FSMContext):
     
     data = await state.get_data()
     profile_data = data.get('profile_data', {})
-    
-    # Сохраняем дату
-    profile_data['birth_day'] = day
-    profile_data['birth_month'] = month
-    
-    # Важно: если год не указан - удаляем старый год
-    if year:
-        profile_data['birth_year'] = year
-    else:
-        # Если год не указан, удаляем его из данных
-        if 'birth_year' in profile_data:
-            del profile_data['birth_year']
-    
-    await state.update_data(profile_data=profile_data)
-    
     edit_mode = data.get('edit_mode', False)
     user_id = message.from_user.id
     username = message.from_user.username or f"user_{user_id}"
     
     if edit_mode:
+        # РЕЖИМ РЕДАКТИРОВАНИЯ - получаем текущий профиль из БД
         current_profile = profile_db.get_profile(user_id)
-        if current_profile:
-            for key, value in profile_data.items():
-                if value is not None:
-                    current_profile[key] = value
-            profile_db.save_profile(user_id, username, current_profile)
-            profile = profile_db.get_profile(user_id)
+        
+        if not current_profile:
+            await message.answer("❌ Профиль не найден")
+            await state.clear()
+            return
+        
+        # Обновляем дату
+        current_profile['birth_day'] = day
+        current_profile['birth_month'] = month
+        if year:
+            current_profile['birth_year'] = year
         else:
-            profile_db.save_profile(user_id, username, profile_data)
-            profile = profile_db.get_profile(user_id)
+            # Если год не указан - удаляем его
+            if 'birth_year' in current_profile:
+                del current_profile['birth_year']
+        
+        # Сохраняем
+        profile_db.save_profile(user_id, username, current_profile)
+        
+        # Получаем обновленный профиль
+        updated_profile = profile_db.get_profile(user_id)
         
         date_str = f"{day:02d}.{month:02d}"
         if year:
             date_str += f".{year}"
         
         await message.answer(
-            f"✅ <b>Дата рождения обновлена: {date_str}</b>\n\n" + format_profile(profile),
+            f"✅ <b>Дата рождения обновлена: {date_str}</b>\n\n" + format_profile(updated_profile),
             reply_markup=get_profile_menu_keyboard(has_profile=True),
             parse_mode="HTML"
         )
         await state.clear()
+        
     else:
+        # НОВЫЙ ПРОФИЛЬ - сохраняем в FSM
+        profile_data['birth_day'] = day
+        profile_data['birth_month'] = month
+        if year:
+            profile_data['birth_year'] = year
+        else:
+            # Если год не указан - удаляем из данных
+            if 'birth_year' in profile_data:
+                del profile_data['birth_year']
+        
+        await state.update_data(profile_data=profile_data)
+        
         date_str = f"{day:02d}.{month:02d}"
         if year:
             date_str += f".{year}"
+        
+        # Сохраняем полный профиль
+        profile_db.save_profile(user_id, username, profile_data)
+        profile = profile_db.get_profile(user_id)
         
         await message.answer(
             f"✅ Дата рождения: {date_str}\n\n"
             f"Профиль успешно заполнен!",
             reply_markup=get_profile_menu_keyboard(has_profile=True)
         )
-        
-        profile_db.save_profile(user_id, username, profile_data)
         await state.clear()
 
 @router.callback_query(F.data == "profile_view")
