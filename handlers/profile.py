@@ -749,16 +749,36 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
         await callback.message.edit_text(
             "✏️ <b>Редактирование имени</b>\n\n"
             "Введите ваше <b>имя</b> (обязательно).\n"
-            "Фамилию и отчество можно добавить по желанию.",
+            "Фамилию и отчество можно добавить по желанию."
+        )
+        await callback.message.answer(
+            "📝 Введите новое имя или ФИО:",
             reply_markup=get_skip_keyboard()
         )
         await state.set_state(ProfileForm.waiting_for_name)
         await state.update_data(edit_mode=True)
     
+    elif field == "gender":  # ← НОВЫЙ БЛОК
+        # Создаём клавиатуру для выбора пола
+        gender_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="👨 Мужской", callback_data="edit_gender_male")],
+            [InlineKeyboardButton(text="👩 Женский", callback_data="edit_gender_female")],
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="profile_edit")]
+        ])
+        
+        await callback.message.edit_text(
+            "⚥ <b>Редактирование пола</b>\n\n"
+            "Выберите ваш пол:",
+            reply_markup=gender_kb
+        )
+    
     elif field == "city":
         await callback.message.edit_text(
             "🏰 <b>Редактирование города</b>\n\n"
-            "Введите ваш город:",
+            "Введите ваш город:"
+        )
+        await callback.message.answer(
+            "📝 Введите новый город:",
             reply_markup=get_skip_keyboard()
         )
         await state.set_state(ProfileForm.waiting_for_city)
@@ -770,7 +790,10 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
             "Введите дату рождения в формате:\n"
             "• ДДММ (например 1503)\n"
             "• ДДММГГГГ (например 15031990)\n"
-            "• ДД.ММ.ГГГГ (например 15.03.1990)",
+            "• ДД.ММ.ГГГГ (например 15.03.1990)"
+        )
+        await callback.message.answer(
+            "📝 Введите новую дату рождения:",
             reply_markup=get_skip_keyboard()
         )
         await state.set_state(ProfileForm.waiting_for_birthday)
@@ -779,3 +802,50 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
     elif field == "back":
         # Назад к просмотру профиля
         await profile_view(callback)
+
+@router.callback_query(F.data.startswith("edit_gender_"))
+async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора пола при редактировании"""
+    await callback.answer()
+    
+    global profile_db
+    
+    choice = callback.data.replace("edit_gender_", "")
+    
+    if choice == "male":
+        gender = 'male'
+        gender_text = "мужской"
+    elif choice == "female":
+        gender = 'female'
+        gender_text = "женский"
+    else:
+        await callback.message.edit_text(
+            "❌ Неверный выбор",
+            reply_markup=get_profile_menu_keyboard(has_profile=True)
+        )
+        return
+    
+    # Получаем текущий профиль
+    user_id = callback.from_user.id
+    profile = profile_db.get_profile(user_id)
+    
+    if not profile:
+        await callback.message.edit_text(
+            "❌ Профиль не найден",
+            reply_markup=get_profile_menu_keyboard(has_profile=False)
+        )
+        return
+    
+    # Обновляем пол
+    profile['gender'] = gender
+    username = callback.from_user.username or f"user_{user_id}"
+    
+    # Сохраняем в БД
+    profile_db.save_profile(user_id, username, profile)
+    
+    # Показываем обновлённый профиль
+    await callback.message.edit_text(
+        f"✅ Пол изменён на: {gender_text}\n\n" + format_profile(profile),
+        reply_markup=get_profile_menu_keyboard(has_profile=True),
+        parse_mode="HTML"
+    )
