@@ -972,6 +972,9 @@ async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
         return
     
     user_id = callback.from_user.id
+    username = callback.from_user.username or f"user_{user_id}"
+    
+    # ПОЛУЧАЕМ ТЕКУЩИЙ ПРОФИЛЬ ИЗ БД
     profile = profile_db.get_profile(user_id)
     
     if not profile:
@@ -981,11 +984,13 @@ async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
         )
         return
     
+    # Обновляем пол
     profile['gender'] = gender
-    username = callback.from_user.username or f"user_{user_id}"
     
+    # Сохраняем
     profile_db.save_profile(user_id, username, profile)
     
+    # Получаем обновленный профиль
     updated_profile = profile_db.get_profile(user_id)
     
     await callback.message.edit_text(
