@@ -205,7 +205,7 @@ async def process_name(message: Message, state: FSMContext):
     
     # Переходим к вводу города
     await message.answer(
-        "🏙 <b>Город</b>\n\n"
+        "🏰 <b>Город</b>\n\n"
         "Введите ваш город (необязательно).\n"
         "Если укажете город, часовой пояс определится автоматически.\n\n"
         "Или нажмите <b>⏭ Пропустить</b> (будет установлен МСК).",
@@ -307,7 +307,7 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
     if action == "retry":
         # Ввести заново
         await callback.message.edit_text(
-            "🏙 Введите название города:",
+            "🏰 Введите название города:",
             reply_markup=get_skip_keyboard()
         )
         return
@@ -325,17 +325,21 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
             "📅 <b>Дата рождения</b>\n\n"
             "Введите дату рождения (число и месяц обязательно, год по желанию).\n\n"
             "Примеры:\n"
-            "• <i>15.03</i>\n"
-            "• <i>15.03.1990</i>\n"
-            "• <i>15 марта</i>\n"
-            "• <i>15 марта 1990</i>"
+            "• ДДММ (1503)\n"
+            "• ДДММГГГГ (15031990)\n"
+            "• ДД.ММ.ГГГГ (15.03.1990)"
         )
         await state.set_state(ProfileForm.waiting_for_birthday)
         return
     
     # Выбран конкретный город (city_name_region)
-    city_name = parts[2] if len(parts) > 2 else ""
-    region = parts[3] if len(parts) > 3 else ""
+    # Собираем обратно название, т.к. оно могло быть разбито на части
+    city_parts = parts[2:]
+    if len(city_parts) < 2:
+        return
+    
+    region = city_parts[-1]
+    city_name = ' '.join(city_parts[:-1])
     
     # Ищем город в БД
     city = city_db.get_city_by_name_and_region(city_name, region)
@@ -505,7 +509,7 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
     
     elif field == "city":
         await callback.message.edit_text(
-            "🏙 <b>Редактирование города</b>\n\n"
+            "🏰 <b>Редактирование города</b>\n\n"
             "Введите ваш город:",
             reply_markup=get_skip_keyboard()
         )
