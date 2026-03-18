@@ -393,7 +393,7 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
             reply_markup=get_skip_keyboard()
         )
     
-    # ===== ОБРАБОТКА ВЫБОРА ГОРОДА ПО НАЗВАНИЮ (старый формат) =====
+       # ===== ОБРАБОТКА ВЫБОРА ГОРОДА ПО НАЗВАНИЮ (старый формат) =====
     try:
         # Разбираем callback_data: city_название_регион
         city_part = data[5:]  # всё после "city_"
