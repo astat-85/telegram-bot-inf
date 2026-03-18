@@ -32,7 +32,7 @@ def get_edit_profile_keyboard() -> InlineKeyboardMarkup:
     """
     buttons = [
         [InlineKeyboardButton(text="👤 ФИО", callback_data="edit_name")],
-        [InlineKeyboardButton(text="🏙 Город", callback_data="edit_city")],
+        [InlineKeyboardButton(text="🏰 Город", callback_data="edit_city")],
         [InlineKeyboardButton(text="📅 Дата рождения", callback_data="edit_birthday")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="profile_view")]
     ]
