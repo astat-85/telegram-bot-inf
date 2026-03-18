@@ -301,8 +301,6 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
     data = callback.data
     
     # ===== ОБРАБОТКА СЛУЖЕБНЫХ КНОПОК =====
-    
-    # Кнопка "Ввести заново"
     if data == "city_retry":
         await callback.message.delete()
         await callback.message.answer(
@@ -311,7 +309,6 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
         )
         return
     
-    # Кнопка "Пропустить (МСК)"
     if data == "city_skip":
         state_data = await state.get_data()
         profile_data = state_data.get('profile_data', {})
@@ -332,39 +329,83 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
         await state.set_state(ProfileForm.waiting_for_birthday)
         return
     
-    # Кнопка "Выбрать из списка" (city_select_123) - пока не реализовано
+    # ===== ОБРАБОТКА ВЫБОРА ГОРОДА ПО ID =====
     if data.startswith("city_select_"):
-        await callback.message.delete()
-        await callback.message.answer(
-            "⚠️ Выбор города по ID временно недоступен.\n"
-            "🏰 Введите название города вручную:",
-            reply_markup=get_skip_keyboard()
-        )
+        try:
+            city_id = int(data.replace("city_select_", ""))
+            print(f"🔍 Выбран город с ID: {city_id}")
+            
+            # Получаем все города
+            all_cities = city_db.get_all_cities()
+            
+            # Ищем город по ID
+            selected_city = None
+            for city in all_cities:
+                if city.get('id') == city_id:
+                    selected_city = city
+                    break
+            
+            if selected_city:
+                city_name = selected_city.get('name', '')
+                region_name = selected_city.get('region', {}).get('name', '')
+                timezone = selected_city.get('timezone', {}).get('tzid', 'Europe/Moscow')
+                
+                print(f"✅ Найден город: {city_name}, {region_name}, пояс: {timezone}")
+                
+                state_data = await state.get_data()
+                profile_data = state_data.get('profile_data', {})
+                profile_data['city'] = city_name
+                profile_data['region'] = region_name
+                profile_data['timezone'] = timezone
+                profile_data['location_manually_set'] = True
+                
+                await state.update_data(profile_data=profile_data)
+                
+                await callback.message.delete()
+                await callback.message.answer(
+                    f"✅ Город: {city_name}, {region_name}\n"
+                    f"🕒 Часовой пояс: {timezone}\n\n"
+                    f"📅 Теперь введите дату рождения:",
+                    reply_markup=get_skip_keyboard()
+                )
+                await state.set_state(ProfileForm.waiting_for_birthday)
+                return
+            else:
+                print(f"❌ Город с ID {city_id} не найден")
+                await callback.message.delete()
+                await callback.message.answer(
+                    "❌ Город не найден в справочнике.\n"
+                    "🏰 Введите название вручную:",
+                    reply_markup=get_skip_keyboard()
+                )
+        except Exception as e:
+            print(f"⚠️ Ошибка при выборе города по ID: {e}")
+            await callback.message.delete()
+            await callback.message.answer(
+                "❌ Ошибка при выборе города. Введите название вручную:",
+                reply_markup=get_skip_keyboard()
+            )
         return
     
-    # ===== ОБРАБОТКА ВЫБОРА ГОРОДА ИЗ СПИСКА (старый формат) =====
+    # ===== ОБРАБОТКА ВЫБОРА ГОРОДА ПО НАЗВАНИЮ (старый формат) =====
     try:
         # Разбираем callback_data: city_название_регион
-        # Убираем префикс "city_"
         city_part = data[5:]  # всё после "city_"
         
-        # Разделяем по последнему подчёркиванию
         last_underscore = city_part.rfind('_')
         if last_underscore == -1:
-            # Если нет подчёркивания - возможно это просто город без региона
             city_name = city_part.replace('_', ' ')
             region = ""
         else:
             region = city_part[last_underscore + 1:]
             city_name = city_part[:last_underscore].replace('_', ' ')
         
-        print(f"🔍 Поиск города: '{city_name}' (регион: '{region}')")
+        print(f"🔍 Поиск города по названию: '{city_name}' (регион: '{region}')")
         
         # Ищем город в БД
         if region:
             city = city_db.get_city_by_name_and_region(city_name, region)
         else:
-            # Если региона нет, ищем по названию
             cities = city_db.search(city_name)
             city = cities[0] if cities else None
         
@@ -389,10 +430,9 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
             return
         else:
             print(f"❌ Город не найден: '{city_name}'")
-            
             await callback.message.delete()
             await callback.message.answer(
-                f"❌ Город '{city_name}' не найден в справочнике.\n"
+                f"❌ Город '{city_name}' не найден.\n"
                 f"🏰 Введите название вручную:",
                 reply_markup=get_skip_keyboard()
             )
