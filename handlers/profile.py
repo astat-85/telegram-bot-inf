@@ -481,11 +481,23 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
     """Выбор поля для редактирования"""
     await callback.answer()
     
+    global profile_db
+    
+    # Проверяем, что profile_db инициализирован
+    if profile_db is None:
+        await callback.message.edit_text(
+            "❌ Ошибка инициализации профиля. Попробуйте позже.",
+            reply_markup=get_profile_menu_keyboard(has_profile=False)
+        )
+        return
+    
     field = callback.data.replace("edit_", "")
     
     if field == "name":
         await callback.message.edit_text(
-            "✏️ Введите новое ФИО:",
+            "✏️ <b>Редактирование имени</b>\n\n"
+            "Введите ваше <b>имя</b> (обязательно).\n"
+            "Фамилию и отчество можно добавить по желанию.",
             reply_markup=get_skip_keyboard()
         )
         await state.set_state(ProfileForm.waiting_for_name)
@@ -493,7 +505,8 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
     
     elif field == "city":
         await callback.message.edit_text(
-            "✏️ Введите новый город:",
+            "🏙 <b>Редактирование города</b>\n\n"
+            "Введите ваш город:",
             reply_markup=get_skip_keyboard()
         )
         await state.set_state(ProfileForm.waiting_for_city)
@@ -501,7 +514,11 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
     
     elif field == "birthday":
         await callback.message.edit_text(
-            "✏️ Введите новую дату рождения:",
+            "📅 <b>Редактирование даты рождения</b>\n\n"
+            "Введите дату рождения в формате:\n"
+            "• ДДММ (например 1503)\n"
+            "• ДДММГГГГ (например 15031990)\n"
+            "• ДД.ММ.ГГГГ (например 15.03.1990)",
             reply_markup=get_skip_keyboard()
         )
         await state.set_state(ProfileForm.waiting_for_birthday)
