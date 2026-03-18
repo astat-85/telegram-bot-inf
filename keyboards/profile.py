@@ -32,12 +32,12 @@ def get_edit_profile_keyboard() -> InlineKeyboardMarkup:
     """
     buttons = [
         [InlineKeyboardButton(text="👤 ФИО", callback_data="edit_name")],
+        [InlineKeyboardButton(text="⚥ Пол", callback_data="edit_gender")],  # ← НОВАЯ КНОПКА
         [InlineKeyboardButton(text="🏰 Город", callback_data="edit_city")],
         [InlineKeyboardButton(text="📅 Дата рождения", callback_data="edit_birthday")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="profile_view")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
-
 def get_city_choice_keyboard(cities: list) -> InlineKeyboardMarkup:
     """
     Клавиатура для выбора города из нескольких вариантов
