@@ -32,12 +32,13 @@ def get_edit_profile_keyboard() -> InlineKeyboardMarkup:
     """
     buttons = [
         [InlineKeyboardButton(text="👤 ФИО", callback_data="edit_name")],
-        [InlineKeyboardButton(text="⚥ Пол", callback_data="edit_gender")],  # ← НОВАЯ КНОПКА
+        [InlineKeyboardButton(text="⚥ Пол", callback_data="edit_gender")],
         [InlineKeyboardButton(text="🏰 Город", callback_data="edit_city")],
         [InlineKeyboardButton(text="📅 Дата рождения", callback_data="edit_birthday")],
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="profile_view")]
     ]
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
 def get_city_choice_keyboard(cities: list) -> InlineKeyboardMarkup:
     """
     Клавиатура для выбора города из нескольких вариантов
@@ -52,7 +53,7 @@ def get_city_choice_keyboard(cities: list) -> InlineKeyboardMarkup:
         else:
             text = city_name
         
-        # Используем ID города для callback, а не название
+        # Используем ID города для callback
         city_id = city.get('id', '')
         if city_id:
             callback = f"city_select_{city_id}"
@@ -71,10 +72,18 @@ def get_city_choice_keyboard(cities: list) -> InlineKeyboardMarkup:
 
 def get_skip_keyboard() -> ReplyKeyboardMarkup:
     """
-    Reply клавиатура с кнопками пропуска и отмены
+    Reply клавиатура с кнопками пропуска
     """
     buttons = [
-        [KeyboardButton(text="⏭ Пропустить")],
-        [KeyboardButton(text="🚫 Отмена")]
+        [KeyboardButton(text="⏭ Пропустить")]
+    ]
+    return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
+
+def get_back_keyboard() -> ReplyKeyboardMarkup:
+    """
+    Reply клавиатура с кнопкой назад
+    """
+    buttons = [
+        [KeyboardButton(text="⬅️ Назад")]
     ]
     return ReplyKeyboardMarkup(keyboard=buttons, resize_keyboard=True)
