@@ -300,7 +300,9 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
     
     data = callback.data
     
-    # Обработка служебных кнопок
+    # ===== ОБРАБОТКА СЛУЖЕБНЫХ КНОПОК =====
+    
+    # Кнопка "Ввести заново"
     if data == "city_retry":
         await callback.message.delete()
         await callback.message.answer(
@@ -309,6 +311,7 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
         )
         return
     
+    # Кнопка "Пропустить (МСК)"
     if data == "city_skip":
         state_data = await state.get_data()
         profile_data = state_data.get('profile_data', {})
@@ -329,7 +332,17 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
         await state.set_state(ProfileForm.waiting_for_birthday)
         return
     
-    # Обработка выбора конкретного города
+    # Кнопка "Выбрать из списка" (city_select_123) - пока не реализовано
+    if data.startswith("city_select_"):
+        await callback.message.delete()
+        await callback.message.answer(
+            "⚠️ Выбор города по ID временно недоступен.\n"
+            "🏰 Введите название города вручную:",
+            reply_markup=get_skip_keyboard()
+        )
+        return
+    
+    # ===== ОБРАБОТКА ВЫБОРА ГОРОДА ИЗ СПИСКА (старый формат) =====
     try:
         # Разбираем callback_data: city_название_регион
         # Убираем префикс "city_"
@@ -338,26 +351,22 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
         # Разделяем по последнему подчёркиванию
         last_underscore = city_part.rfind('_')
         if last_underscore == -1:
-            raise ValueError("Неверный формат callback_data")
+            # Если нет подчёркивания - возможно это просто город без региона
+            city_name = city_part.replace('_', ' ')
+            region = ""
+        else:
+            region = city_part[last_underscore + 1:]
+            city_name = city_part[:last_underscore].replace('_', ' ')
         
-        region = city_part[last_underscore + 1:]
-        city_name = city_part[:last_underscore].replace('_', ' ')
-        
-        print(f"🔍 Поиск города: '{city_name}' в регионе '{region}'")
+        print(f"🔍 Поиск города: '{city_name}' (регион: '{region}')")
         
         # Ищем город в БД
-        # Сначала пробуем точный поиск
-        city = city_db.get_city_by_name_and_region(city_name, region)
-        
-        # Если не нашли, пробуем без учёта регистра
-        if not city:
-            all_cities = city_db.get_all_cities()
-            for c in all_cities:
-                if (c['name'].lower() == city_name.lower() and 
-                    c['region']['name'].lower() == region.lower()):
-                    city = c
-                    print(f"✅ Найдено по нижнему регистру: {c['name']}")
-                    break
+        if region:
+            city = city_db.get_city_by_name_and_region(city_name, region)
+        else:
+            # Если региона нет, ищем по названию
+            cities = city_db.search(city_name)
+            city = cities[0] if cities else None
         
         if city:
             state_data = await state.get_data()
@@ -379,15 +388,12 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
             await state.set_state(ProfileForm.waiting_for_birthday)
             return
         else:
-            print(f"❌ Город не найден: '{city_name}' ({region})")
-            # Показываем все города для отладки (можно убрать потом)
-            all_cities = city_db.get_all_cities()[:5]
-            print(f"Примеры городов: {[(c['name'], c['region']['name']) for c in all_cities]}")
+            print(f"❌ Город не найден: '{city_name}'")
             
             await callback.message.delete()
             await callback.message.answer(
                 f"❌ Город '{city_name}' не найден в справочнике.\n"
-                f"Введите название вручную:",
+                f"🏰 Введите название вручную:",
                 reply_markup=get_skip_keyboard()
             )
     except Exception as e:
