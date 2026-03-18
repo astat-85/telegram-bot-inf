@@ -1,9 +1,11 @@
 """
-Определение пола по имени через names-dataset и pymorphy2
+Определение пола по имени из JSON-файла
 """
+import json
+import os
+from pathlib import Path
 import pymorphy2
 import inspect
-from names_dataset import NameDataset
 
 # ПАТЧ ДЛЯ СОВМЕСТИМОСТИ С PYTHON 3.11
 if not hasattr(inspect, 'getargspec'):
@@ -12,15 +14,28 @@ if not hasattr(inspect, 'getargspec'):
         return spec
     inspect.getargspec = getargspec_patch
 
-# Загружаем базу имён (первый раз скачается ~50мб)
-try:
-    nd = NameDataset()
-    NAMES_DB_AVAILABLE = True
-    print("✅ База имён загружена")
-except Exception as e:
-    print(f"⚠️ Ошибка загрузки базы имён: {e}")
-    NAMES_DB_AVAILABLE = False
-    nd = None
+# Загружаем имена из JSON
+def load_names():
+    json_path = Path(__file__).parent.parent / "data" / "russian_names.json"
+    if json_path.exists():
+        try:
+            with open(json_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                male_names = [name.lower() for name in data.get('male', [])]
+                female_names = [name.lower() for name in data.get('female', [])]
+                print(f"✅ Загружено {len(male_names)} мужских и {len(female_names)} женских имён из JSON")
+                return male_names, female_names
+        except Exception as e:
+            print(f"⚠️ Ошибка загрузки JSON: {e}")
+    
+    # Если файла нет - возвращаем базовый набор
+    print("⚠️ Файл с именами не найден, использую базовый словарь")
+    return (
+        ['александр', 'алексей', 'андрей', 'антон', 'дмитрий', 'евгений', 'юрий', 'юра'],
+        ['анна', 'елена', 'ольга', 'татьяна', 'юлия', 'мария']
+    )
+
+MALE_NAMES, FEMALE_NAMES = load_names()
 
 # Pymorphy2 как запасной вариант
 try:
@@ -39,28 +54,20 @@ def detect_gender_by_name(name: str) -> str | None:
     if not name or len(name) < 2:
         return None
     
-    name_clean = name.strip().capitalize()
+    name_lower = name.lower().strip()
     
-    # 1️⃣ Сначала проверяем по базе имён
-    if NAMES_DB_AVAILABLE and nd:
-        try:
-            # В новой версии names-dataset используется другой метод
-            result = nd.search(name_clean)
-            if result and 'first_name' in result:
-                gender = result['first_name'].get('gender')
-                if gender == 'male':
-                    print(f"✅ База имён: {name} -> мужской")
-                    return 'male'
-                elif gender == 'female':
-                    print(f"✅ База имён: {name} -> женский")
-                    return 'female'
-        except Exception as e:
-            print(f"⚠️ Ошибка поиска в базе имён: {e}")
+    # 1️⃣ Проверяем по загруженному словарю
+    if name_lower in MALE_NAMES:
+        print(f"✅ Словарь: {name} -> мужской")
+        return 'male'
+    if name_lower in FEMALE_NAMES:
+        print(f"✅ Словарь: {name} -> женский")
+        return 'female'
     
     # 2️⃣ Запасной вариант: pymorphy2
     if PYMORPHY_AVAILABLE and morph:
         try:
-            parsed = morph.parse(name.lower())[0]
+            parsed = morph.parse(name_lower)[0]
             if 'masc' in parsed.tag:
                 print(f"✅ pymorphy2: {name} -> мужской")
                 return 'male'
@@ -71,7 +78,7 @@ def detect_gender_by_name(name: str) -> str | None:
             pass
     
     # 3️⃣ Самый запасной вариант - по окончанию
-    if name.lower().endswith(('а', 'я')):
+    if name_lower.endswith(('а', 'я')):
         print(f"⚠️ По окончанию: {name} -> женский")
         return 'female'
     else:
