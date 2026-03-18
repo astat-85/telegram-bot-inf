@@ -959,7 +959,11 @@ async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
     
     global profile_db
     
+    print(f"🔍 edit_gender_choice: {callback.data}")  # ОТЛАДКА
+    print(f"🔍 user_id: {callback.from_user.id}")     # ОТЛАДКА
+    
     choice = callback.data.replace("edit_gender_", "")
+    print(f"🔍 choice: {choice}")  # ОТЛАДКА
     
     if choice == "male":
         gender = 'male'
@@ -968,6 +972,7 @@ async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
         gender = 'female'
         gender_text = "женский"
     else:
+        print(f"❌ Неверный выбор: {choice}")  # ОТЛАДКА
         await callback.message.edit_text(
             "❌ Неверный выбор",
             reply_markup=get_profile_menu_keyboard(has_profile=True)
@@ -979,11 +984,14 @@ async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
     profile = profile_db.get_profile(user_id)
     
     if not profile:
+        print(f"❌ Профиль не найден для user_id: {user_id}")  # ОТЛАДКА
         await callback.message.edit_text(
             "❌ Профиль не найден",
             reply_markup=get_profile_menu_keyboard(has_profile=False)
         )
         return
+    
+    print(f"✅ Текущий профиль: {profile}")  # ОТЛАДКА
     
     # Обновляем пол
     profile['gender'] = gender
@@ -992,9 +1000,14 @@ async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
     # Сохраняем в БД
     profile_db.save_profile(user_id, username, profile)
     
+    # Получаем обновлённый профиль для отображения
+    updated_profile = profile_db.get_profile(user_id)
+    
+    print(f"✅ Профиль обновлён, пол: {updated_profile.get('gender')}")  # ОТЛАДКА
+    
     # Показываем обновлённый профиль
     await callback.message.edit_text(
-        f"✅ Пол изменён на: {gender_text}\n\n" + format_profile(profile),
+        f"✅ Пол изменён на: {gender_text}\n\n" + format_profile(updated_profile),
         reply_markup=get_profile_menu_keyboard(has_profile=True),
         parse_mode="HTML"
     )
