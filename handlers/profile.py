@@ -8,7 +8,7 @@ from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 from database.profile_db import ProfileDB
 from utils.gender import detect_gender_by_name
@@ -31,12 +31,74 @@ city_db = CityDatabase()
 # Состояния FSM для заполнения профиля
 class ProfileForm(StatesGroup):
     waiting_for_name = State()          # Ожидание ФИО
+    waiting_for_gender_choice = State() # Ожидание выбора пола (если имя неоднозначное)
     waiting_for_city = State()           # Ожидание города
     waiting_for_birthday = State()       # Ожидание даты рождения
     waiting_for_confirm = State()        # Подтверждение данных
 
 # Роутер для профиля
 router = Router()
+
+def format_timezone_offset(tzid: str) -> str:
+    """
+    Преобразует название часового пояса в смещение относительно Москвы
+    """
+    # Словарь смещений для основных часовых поясов России
+    timezone_offsets = {
+        'Europe/Kaliningrad': 'MSK-1 (UTC+2)',
+        'Europe/Moscow': 'MSK (UTC+3)',
+        'Europe/Volgograd': 'MSK (UTC+3)',
+        'Europe/Kirov': 'MSK (UTC+3)',
+        'Europe/Astrakhan': 'MSK+1 (UTC+4)',
+        'Europe/Samara': 'MSK+1 (UTC+4)',
+        'Europe/Saratov': 'MSK+1 (UTC+4)',
+        'Europe/Ulyanovsk': 'MSK+1 (UTC+4)',
+        'Asia/Yekaterinburg': 'MSK+2 (UTC+5)',
+        'Asia/Omsk': 'MSK+3 (UTC+6)',
+        'Asia/Novosibirsk': 'MSK+4 (UTC+7)',
+        'Asia/Barnaul': 'MSK+4 (UTC+7)',
+        'Asia/Tomsk': 'MSK+4 (UTC+7)',
+        'Asia/Novokuznetsk': 'MSK+4 (UTC+7)',
+        'Asia/Krasnoyarsk': 'MSK+4 (UTC+7)',
+        'Asia/Irkutsk': 'MSK+5 (UTC+8)',
+        'Asia/Chita': 'MSK+6 (UTC+9)',
+        'Asia/Yakutsk': 'MSK+6 (UTC+9)',
+        'Asia/Khandyga': 'MSK+6 (UTC+9)',
+        'Asia/Vladivostok': 'MSK+7 (UTC+10)',
+        'Asia/Ust-Nera': 'MSK+7 (UTC+10)',
+        'Asia/Magadan': 'MSK+8 (UTC+11)',
+        'Asia/Sakhalin': 'MSK+8 (UTC+11)',
+        'Asia/Srednekolymsk': 'MSK+8 (UTC+11)',
+        'Asia/Kamchatka': 'MSK+9 (UTC+12)',
+        'Asia/Anadyr': 'MSK+9 (UTC+12)'
+    }
+    
+    # Если пояс есть в словаре - возвращаем красивое название
+    if tzid in timezone_offsets:
+        return timezone_offsets[tzid]
+    
+    # Если нет - пробуем определить смещение по названию
+    if 'Asia/Yekaterinburg' in tzid:
+        return 'MSK+2 (UTC+5)'
+    elif 'Asia/Omsk' in tzid:
+        return 'MSK+3 (UTC+6)'
+    elif 'Asia/Novosibirsk' in tzid:
+        return 'MSK+4 (UTC+7)'
+    elif 'Asia/Krasnoyarsk' in tzid:
+        return 'MSK+4 (UTC+7)'
+    elif 'Asia/Irkutsk' in tzid:
+        return 'MSK+5 (UTC+8)'
+    elif 'Asia/Yakutsk' in tzid:
+        return 'MSK+6 (UTC+9)'
+    elif 'Asia/Vladivostok' in tzid:
+        return 'MSK+7 (UTC+10)'
+    elif 'Asia/Magadan' in tzid:
+        return 'MSK+8 (UTC+11)'
+    elif 'Asia/Kamchatka' in tzid:
+        return 'MSK+9 (UTC+12)'
+    
+    # Если ничего не подошло - возвращаем как есть
+    return tzid.replace('Europe/', '').replace('Asia/', '')
 
 async def check_subscription_wrapper(user_id: int) -> bool:
     """Обертка для проверки подписки"""
@@ -73,7 +135,7 @@ async def cmd_profile(message: Message):
     profile = profile_db.get_profile(user_id)
     
     if not profile:
-        # Профиль не заполнен - НОВЫЙ ТЕКСТ
+        # Профиль не заполнен
         text = (
             "👤 <b>Личное дело</b>\n\n"
             "Сведения необходимы:\n"
@@ -117,12 +179,14 @@ def format_profile(profile: dict) -> str:
     else:
         birth = "—"
     
-    # Город и часовой пояс
+    # Город и регион
     location = profile.get('city', '—')
     if profile.get('region'):
         location += f", {profile['region']}"
     
-    timezone_display = profile.get('timezone', 'Europe/Moscow').replace('Europe/', '').replace('Asia/', '')
+    # Часовой пояс в формате UTC+/- или MSK+/- 
+    timezone = profile.get('timezone', 'Europe/Moscow')
+    timezone_display = format_timezone_offset(timezone)
     
     text = (
         f"👤 <b>Мой профиль</b>\n\n"
@@ -176,35 +240,122 @@ async def process_name(message: Message, state: FSMContext):
     data = {}
     if len(parts) == 1:
         # Только имя
-        data['first_name'] = parts[0]
+        data['first_name'] = parts[0].capitalize()
         data['last_name'] = None
         data['middle_name'] = None
     elif len(parts) == 2:
         # Имя + Фамилия
-        data['first_name'] = parts[0]
-        data['last_name'] = parts[1]
+        data['first_name'] = parts[0].capitalize()
+        data['last_name'] = parts[1].capitalize()
         data['middle_name'] = None
     elif len(parts) >= 3:
         # Имя + Отчество + Фамилия
-        data['first_name'] = parts[0]
-        data['middle_name'] = parts[1]
-        data['last_name'] = ' '.join(parts[2:])
+        data['first_name'] = parts[0].capitalize()
+        data['middle_name'] = parts[1].capitalize()
+        data['last_name'] = ' '.join(parts[2:]).capitalize()
     else:
         await message.answer("❌ Слишком мало данных. Введите хотя бы имя.")
         return
     
     # Определяем пол по имени
     gender = detect_gender_by_name(data['first_name'])
-    if gender:
-        data['gender'] = gender
-        gender_text = "мужской" if gender == 'male' else "женский"
-        await message.answer(f"✅ Определен пол: {gender_text}")
     
-    # Сохраняем в FSM
-    await state.update_data(profile_data=data)
+    if gender == 'male':
+        data['gender'] = 'male'
+        gender_text = "мужской"
+        await message.answer(f"✅ Определен пол: {gender_text}")
+        
+        # Сохраняем в FSM
+        await state.update_data(profile_data=data)
+        
+        # Сразу переходим к городу
+        await message.answer(
+            "🏰 <b>Город</b>\n\n"
+            "Введите ваш город (необязательно).\n"
+            "Если укажете город, часовой пояс определится автоматически.\n\n"
+            "Или нажмите <b>⏭ Пропустить</b> (будет установлен МСК).",
+            reply_markup=get_skip_keyboard()
+        )
+        await state.set_state(ProfileForm.waiting_for_city)
+        
+    elif gender == 'female':
+        data['gender'] = 'female'
+        gender_text = "женский"
+        await message.answer(f"✅ Определен пол: {gender_text}")
+        
+        # Сохраняем в FSM
+        await state.update_data(profile_data=data)
+        
+        # Сразу переходим к городу
+        await message.answer(
+            "🏰 <b>Город</b>\n\n"
+            "Введите ваш город (необязательно).\n"
+            "Если укажете город, часовой пояс определится автоматически.\n\n"
+            "Или нажмите <b>⏭ Пропустить</b> (будет установлен МСК).",
+            reply_markup=get_skip_keyboard()
+        )
+        await state.set_state(ProfileForm.waiting_for_city)
+        
+    else:
+        # Пол не определён - предлагаем выбрать
+        await state.update_data(profile_data=data)
+        
+        # Создаём клавиатуру для выбора пола
+        gender_kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="👨 Мужской", callback_data="gender_male")],
+            [InlineKeyboardButton(text="👩 Женский", callback_data="gender_female")],
+            [InlineKeyboardButton(text="🚫 Отмена", callback_data="gender_cancel")]
+        ])
+        
+        await message.answer(
+            f"❓ Не удалось однозначно определить пол для имени '{data['first_name']}'.\n"
+            f"Пожалуйста, укажите ваш пол:",
+            reply_markup=gender_kb
+        )
+        await state.set_state(ProfileForm.waiting_for_gender_choice)
+
+@router.callback_query(F.data.startswith("gender_"))
+async def gender_choice_callback(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора пола"""
+    await callback.answer()
+    
+    choice = callback.data.replace("gender_", "")
+    
+    if choice == "cancel":
+        await callback.message.delete()
+        await callback.message.answer(
+            "❌ Заполнение отменено",
+            reply_markup=get_profile_menu_keyboard(has_profile=False)
+        )
+        await state.clear()
+        return
+    
+    # Получаем сохранённые данные
+    state_data = await state.get_data()
+    profile_data = state_data.get('profile_data', {})
+    
+    if choice == "male":
+        profile_data['gender'] = 'male'
+        gender_text = "мужской"
+    elif choice == "female":
+        profile_data['gender'] = 'female'
+        gender_text = "женский"
+    else:
+        await callback.message.delete()
+        await callback.message.answer(
+            "❌ Неверный выбор",
+            reply_markup=get_profile_menu_keyboard(has_profile=False)
+        )
+        await state.clear()
+        return
+    
+    await state.update_data(profile_data=profile_data)
+    
+    await callback.message.delete()
+    await callback.message.answer(f"✅ Выбран пол: {gender_text}")
     
     # Переходим к вводу города
-    await message.answer(
+    await callback.message.answer(
         "🏰 <b>Город</b>\n\n"
         "Введите ваш город (необязательно).\n"
         "Если укажете город, часовой пояс определится автоматически.\n\n"
@@ -231,10 +382,9 @@ async def process_city(message: Message, state: FSMContext):
             "📅 <b>Дата рождения</b>\n\n"
             "Введите дату рождения (число и месяц обязательно, год по желанию).\n\n"
             "Примеры:\n"
-            "• <i>15.03</i>\n"
-            "• <i>15.03.1990</i>\n"
-            "• <i>15 марта</i>\n"
-            "• <i>15 марта 1990</i>",
+            "• ДДММ (1503)\n"
+            "• ДДММГГГГ (15031990)\n"
+            "• ДД.ММ.ГГГГ (15.03.1990)",
             reply_markup=get_skip_keyboard()
         )
         await state.set_state(ProfileForm.waiting_for_birthday)
@@ -271,7 +421,7 @@ async def process_city(message: Message, state: FSMContext):
         
         await message.answer(
             f"✅ Город: {city['name']}, {city['region']['name']}\n"
-            f"🕒 Часовой пояс: {city['timezone']['tzid']}"
+            f"🕒 Часовой пояс: {format_timezone_offset(city['timezone']['tzid'])}"
         )
         
         # Переходим к дате рождения
@@ -279,10 +429,9 @@ async def process_city(message: Message, state: FSMContext):
             "📅 <b>Дата рождения</b>\n\n"
             "Введите дату рождения (число и месяц обязательно, год по желанию).\n\n"
             "Примеры:\n"
-            "• <i>15.03</i>\n"
-            "• <i>15.03.1990</i>\n"
-            "• <i>15 марта</i>\n"
-            "• <i>15 марта 1990</i>",
+            "• ДДММ (1503)\n"
+            "• ДДММГГГГ (15031990)\n"
+            "• ДД.ММ.ГГГГ (15.03.1990)",
             reply_markup=get_skip_keyboard()
         )
         await state.set_state(ProfileForm.waiting_for_birthday)
@@ -340,15 +489,6 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
             all_cities = city_db.get_all_cities()
             print(f"📊 ВСЕГО ГОРОДОВ: {len(all_cities)}")
             
-            # Покажем пример города для отладки
-            if all_cities:
-                first_city = all_cities[0]
-                print(f"📌 ПРИМЕР ГОРОДА: {first_city.get('name')}")
-                print(f"   id: {first_city.get('id')}")
-                print(f"   okato: {first_city.get('okato')}")
-                print(f"   oktmo: {first_city.get('oktmo')}")
-                print(f"   guid: {first_city.get('guid')}")
-            
             # Ищем город по разным возможным полям
             selected_city = None
             
@@ -363,7 +503,7 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
                     print(f"✅ НАЙДЕН ГОРОД: {city.get('name')} по полному совпадению")
                     break
             
-            # Если не нашли, пробуем искать по частичному совпадению (вдруг обрезали)
+            # Если не нашли, пробуем искать по частичному совпадению
             if not selected_city:
                 for city in all_cities:
                     city_id = city.get('id', '')
@@ -391,7 +531,7 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
                 await callback.message.delete()
                 await callback.message.answer(
                     f"✅ Город: {city_name}, {region_name}\n"
-                    f"🕒 Часовой пояс: {timezone}\n\n"
+                    f"🕒 Часовой пояс: {format_timezone_offset(timezone)}\n\n"
                     f"📅 Теперь введите дату рождения:",
                     reply_markup=get_skip_keyboard()
                 )
@@ -400,8 +540,6 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
             else:
                 print(f"❌ ГОРОД НЕ НАЙДЕН, пробуем поиск по названию")
                 
-                # Запасной вариант - пробуем найти по названию из callback
-                # Но в city_select_ у нас только ID, поэтому переходим к ручному вводу
                 await callback.message.delete()
                 await callback.message.answer(
                     "❌ Город не найден по идентификатору.\n"
@@ -420,9 +558,57 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
             )
             return
     
-    # Если это не city_select_, а старый формат city_название_регион
-    # ... (оставляем старую обработку)
-     
+    # ===== ОБРАБОТКА ВЫБОРА ГОРОДА ПО НАЗВАНИЮ =====
+    # Формат: city_название_регион
+    # Убираем "city_" из начала
+    city_part = data[5:]
+    
+    # Разделяем по последнему подчёркиванию
+    last_underscore = city_part.rfind('_')
+    if last_underscore == -1:
+        # Если нет региона
+        city_name = city_part.replace('_', ' ')
+        region = ""
+    else:
+        region = city_part[last_underscore + 1:]
+        city_name = city_part[:last_underscore].replace('_', ' ')
+    
+    print(f"🔍 Поиск города по названию: '{city_name}' (регион: '{region}')")
+    
+    # Ищем город в БД
+    if region:
+        city = city_db.get_city_by_name_and_region(city_name, region)
+    else:
+        cities = city_db.search(city_name)
+        city = cities[0] if cities else None
+    
+    if city:
+        state_data = await state.get_data()
+        profile_data = state_data.get('profile_data', {})
+        profile_data['city'] = city['name']
+        profile_data['region'] = city['region']['name']
+        profile_data['timezone'] = city['timezone']['tzid']
+        profile_data['location_manually_set'] = True
+        
+        await state.update_data(profile_data=profile_data)
+        
+        await callback.message.delete()
+        await callback.message.answer(
+            f"✅ Город: {city['name']}, {city['region']['name']}\n"
+            f"🕒 Часовой пояс: {format_timezone_offset(city['timezone']['tzid'])}\n\n"
+            f"📅 Теперь введите дату рождения:",
+            reply_markup=get_skip_keyboard()
+        )
+        await state.set_state(ProfileForm.waiting_for_birthday)
+    else:
+        print(f"❌ Город не найден: {city_name}")
+        await callback.message.delete()
+        await callback.message.answer(
+            f"❌ Город '{city_name}' не найден в справочнике.\n"
+            f"🏰 Введите название вручную:",
+            reply_markup=get_skip_keyboard()
+        )
+
 @router.message(ProfileForm.waiting_for_birthday)
 async def process_birthday(message: Message, state: FSMContext):
     """Обработка введенной даты рождения"""
@@ -467,10 +653,9 @@ async def process_birthday(message: Message, state: FSMContext):
         await message.answer(
             "❌ Неверный формат даты.\n\n"
             "Примеры:\n"
-            "• <i>15.03</i>\n"
-            "• <i>15.03.1990</i>\n"
-            "• <i>15 марта</i>\n"
-            "• <i>15 марта 1990</i>",
+            "• ДДММ (1503)\n"
+            "• ДДММГГГГ (15031990)\n"
+            "• ДД.ММ.ГГГГ (15.03.1990)",
             reply_markup=get_skip_keyboard()
         )
         return
