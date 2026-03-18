@@ -408,9 +408,22 @@ async def process_city(message: Message, state: FSMContext):
             user_id = message.from_user.id
             username = message.from_user.username or f"user_{user_id}"
             
-            profile_db.save_profile(user_id, username, profile_data)
+            # Получаем текущий профиль
+            current_profile = profile_db.get_profile(user_id)
+            if current_profile:
+                # Обновляем только город
+                current_profile['city'] = profile_data['city']
+                current_profile['region'] = profile_data['region']
+                current_profile['timezone'] = profile_data['timezone']
+                current_profile['location_manually_set'] = profile_data['location_manually_set']
+        
+                profile_db.save_profile(user_id, username, current_profile)
+                profile = profile_db.get_profile(user_id)
+            else:
+                profile_db.save_profile(user_id, username, profile_data)
+                profile = profile_db.get_profile(user_id)
             
-            profile = profile_db.get_profile(user_id)
+        
             await message.answer(
                 "✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile),
                 reply_markup=get_profile_menu_keyboard(has_profile=True),
@@ -609,7 +622,18 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
                     user_id = callback.from_user.id
                     username = callback.from_user.username or f"user_{user_id}"
                     
-                    profile_db.save_profile(user_id, username, profile_data)
+                    # Получаем текущий профиль
+                    current_profile = profile_db.get_profile(user_id)
+                    if current_profile:
+                        # Обновляем только город
+                        current_profile['city'] = profile_data['city']
+                        current_profile['region'] = profile_data['region']
+                        current_profile['timezone'] = profile_data['timezone']
+                        current_profile['location_manually_set'] = profile_data['location_manually_set']
+        
+                        profile_db.save_profile(user_id, username, current_profile)
+                    else:
+                        profile_db.save_profile(user_id, username, profile_data)
                     
                     profile = profile_db.get_profile(user_id)
                     await callback.message.answer(
