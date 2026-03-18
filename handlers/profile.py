@@ -762,12 +762,16 @@ async def process_birthday(message: Message, state: FSMContext):
         username = message.from_user.username or f"user_{user_id}"
         
         if edit_mode:
-            # Редактирование: обновляем профиль без изменения даты
+            # РЕЖИМ РЕДАКТИРОВАНИЯ - получаем полный профиль из БД
             current_profile = profile_db.get_profile(user_id)
             if current_profile:
+                # Обновляем только те поля, которые есть в profile_data
+                for key, value in profile_data.items():
+                    current_profile[key] = value
                 profile_db.save_profile(user_id, username, current_profile)
                 profile = profile_db.get_profile(user_id)
             else:
+                # Если профиля нет (странно), создаём новый
                 profile_db.save_profile(user_id, username, profile_data)
                 profile = profile_db.get_profile(user_id)
             
@@ -777,7 +781,7 @@ async def process_birthday(message: Message, state: FSMContext):
                 parse_mode="HTML"
             )
         else:
-            # Новый профиль: сохраняем как есть
+            # НОВЫЙ ПРОФИЛЬ - просто сохраняем
             profile_db.save_profile(user_id, username, profile_data)
             profile = profile_db.get_profile(user_id)
             
@@ -838,18 +842,17 @@ async def process_birthday(message: Message, state: FSMContext):
     username = message.from_user.username or f"user_{user_id}"
     
     if edit_mode:
-        # РЕЖИМ РЕДАКТИРОВАНИЯ - сразу показываем профиль
+        # РЕЖИМ РЕДАКТИРОВАНИЯ - получаем полный профиль из БД
         current_profile = profile_db.get_profile(user_id)
         if current_profile:
-            # Обновляем только дату рождения
-            current_profile['birth_day'] = day
-            current_profile['birth_month'] = month
-            if year:
-                current_profile['birth_year'] = year
+            # Обновляем поля из profile_data
+            for key, value in profile_data.items():
+                current_profile[key] = value
             
             profile_db.save_profile(user_id, username, current_profile)
             profile = profile_db.get_profile(user_id)
         else:
+            # Если профиля нет (странно), создаём новый
             profile_db.save_profile(user_id, username, profile_data)
             profile = profile_db.get_profile(user_id)
         
