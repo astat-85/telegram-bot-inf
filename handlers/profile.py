@@ -155,7 +155,7 @@ async def start_profile_fill(callback: CallbackQuery, state: FSMContext):
         "• <i>Иван Сергеевич Петров</i>"
     )
     await callback.message.answer(
-        "📝 Введите ФИО:",
+        "📝 Введите Имя или ФИО:",
         reply_markup=get_skip_keyboard()
     )
     await state.set_state(ProfileForm.waiting_for_name)
