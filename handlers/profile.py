@@ -191,7 +191,7 @@ def format_profile(profile: dict) -> str:
     text = (
         f"👤 <b>Мой профиль</b>\n\n"
         f"<b>Имя:</b> {full_name}\n"
-        f"<b>Пол:</b} {gender_text}\n"
+        f"<b>Пол:</b> {gender_text}\n"
         f"<b>Дата рождения:</b> {birth}\n"
         f"<b>Город:</b> {location}\n"
         f"<b>Часовой пояс:</b> {timezone_display}\n\n"
