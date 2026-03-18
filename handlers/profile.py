@@ -955,6 +955,12 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("edit_gender_"))
 async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора пола при редактировании"""
+    print(f"\n🔴🔴🔴 edit_gender_choice ВЫЗВАНА! 🔴🔴🔴")
+    print(f"🔴 callback.data = '{callback.data}'")
+    print(f"🔴 user_id = {callback.from_user.id}")
+    print(f"🔴 is_admin = {is_admin(callback.from_user.id)}")
+    print("🔴" * 30)
+    
     await callback.answer()
     
     global profile_db
