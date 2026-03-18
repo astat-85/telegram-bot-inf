@@ -43,12 +43,28 @@ def get_city_choice_keyboard(cities: list) -> InlineKeyboardMarkup:
     Клавиатура для выбора города из нескольких вариантов
     """
     buttons = []
-    for city in cities[:5]:  # максимум 5 вариантов
-        text = f"{city['name']}, {city['region']['name']}"
-        callback = f"city_{city['name']}_{city['region']['name']}"
+    for city in cities[:10]:  # максимум 10 вариантов
+        city_name = city.get('name', '')
+        region_name = city.get('region', {}).get('name', '')
+        
+        if region_name:
+            text = f"{city_name} ({region_name})"
+        else:
+            text = city_name
+        
+        # Используем ID города для callback, а не название
+        city_id = city.get('id', '')
+        if city_id:
+            callback = f"city_select_{city_id}"
+        else:
+            # Если нет ID, используем упрощённый вариант
+            simple_name = city_name.replace(' ', '_').replace('-', '_')
+            simple_region = region_name.replace(' ', '_').replace('-', '_')
+            callback = f"city_{simple_name}_{simple_region}"
+        
         buttons.append([InlineKeyboardButton(text=text, callback_data=callback)])
     
-    buttons.append([InlineKeyboardButton(text="🔍 Ввести заново", callback_data="city_retry")])
+    buttons.append([InlineKeyboardButton(text="🔄 Ввести заново", callback_data="city_retry")])
     buttons.append([InlineKeyboardButton(text="⏭ Пропустить (МСК)", callback_data="city_skip")])
     
     return InlineKeyboardMarkup(inline_keyboard=buttons)
