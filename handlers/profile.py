@@ -302,9 +302,11 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
     
     # Обработка служебных кнопок
     if data == "city_retry":
-        await callback.message.edit_text(
+        # При повторном вводе отправляем НОВОЕ сообщение, а не редактируем старое
+        await callback.message.delete()
+        await callback.message.answer(
             "🏰 Введите название города:",
-            reply_markup=get_skip_keyboard()
+            reply_markup=get_skip_keyboard()  # ← Это ReplyKeyboardMarkup - можно
         )
         return
     
@@ -317,64 +319,62 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
         
         await state.update_data(profile_data=profile_data)
         
-        await callback.message.edit_text(
+        # Удаляем старое сообщение и отправляем новое
+        await callback.message.delete()
+        await callback.message.answer(
             "📅 <b>Дата рождения</b>\n\n"
             "Введите дату рождения:\n"
             "• ДДММ (1503)\n"
             "• ДДММГГГГ (15031990)\n"
-            "• ДД.ММ.ГГГГ (15.03.1990)"
+            "• ДД.ММ.ГГГГ (15.03.1990)",
+            reply_markup=get_skip_keyboard()  # ← Это ReplyKeyboardMarkup - можно
         )
         await state.set_state(ProfileForm.waiting_for_birthday)
         return
     
-    # Обработка выбора города по ID
-    if data.startswith("city_select_"):
-        # Здесь нужно получить город по ID из базы
-        # Но пока просто сообщим, что функция в разработке
-        await callback.message.edit_text(
-            "⚠️ Функция выбора города по ID временно недоступна.\n"
-            "Пожалуйста, введите город вручную:",
-            reply_markup=get_skip_keyboard()
-        )
-        return
-    
-    # Старый формат (для обратной совместимости)
+    # Обработка выбора конкретного города
+    # Формат: city_название_регион
     parts = data.split('_')
-    if len(parts) < 3:
+    if len(parts) < 2:
         return
     
     # Пытаемся восстановить название города из callback_data
-    city_name = parts[2] if len(parts) > 2 else ""
-    region = parts[3] if len(parts) > 3 else ""
-    
-    # Заменяем обратно подчёркивания на пробелы
-    city_name = city_name.replace('_', ' ')
-    region = region.replace('_', ' ')
-    
-    # Ищем город в БД
-    city = city_db.get_city_by_name_and_region(city_name, region)
-    if city:
-        state_data = await state.get_data()
-        profile_data = state_data.get('profile_data', {})
-        profile_data['city'] = city['name']
-        profile_data['region'] = city['region']['name']
-        profile_data['timezone'] = city['timezone']['tzid']
-        profile_data['location_manually_set'] = True
+    # Пропускаем первый элемент "city", остальное - название и регион
+    if len(parts) >= 3:
+        # Последняя часть - регион, остальное - название города
+        region = parts[-1]
+        city_name = ' '.join(parts[1:-1]).replace('_', ' ')
         
-        await state.update_data(profile_data=profile_data)
-        
-        await callback.message.edit_text(
-            f"✅ Город: {city['name']}, {city['region']['name']}\n"
-            f"🕒 Часовой пояс: {city['timezone']['tzid']}\n\n"
-            f"📅 Теперь введите дату рождения:"
-        )
-        await state.set_state(ProfileForm.waiting_for_birthday)
-    else:
-        # Если не нашли, предлагаем ввести заново
-        await callback.message.edit_text(
-            "❌ Город не найден. Введите название вручную:",
-            reply_markup=get_skip_keyboard()
-        )
+        # Ищем город в БД
+        city = city_db.get_city_by_name_and_region(city_name, region)
+        if city:
+            state_data = await state.get_data()
+            profile_data = state_data.get('profile_data', {})
+            profile_data['city'] = city['name']
+            profile_data['region'] = city['region']['name']
+            profile_data['timezone'] = city['timezone']['tzid']
+            profile_data['location_manually_set'] = True
+            
+            await state.update_data(profile_data=profile_data)
+            
+            # Удаляем старое сообщение и отправляем новое
+            await callback.message.delete()
+            await callback.message.answer(
+                f"✅ Город: {city['name']}, {city['region']['name']}\n"
+                f"🕒 Часовой пояс: {city['timezone']['tzid']}\n\n"
+                f"📅 Теперь введите дату рождения:",
+                reply_markup=get_skip_keyboard()  # ← ReplyKeyboardMarkup
+            )
+            await state.set_state(ProfileForm.waiting_for_birthday)
+            return
+    
+    # Если не нашли или формат неправильный
+    await callback.message.delete()
+    await callback.message.answer(
+        "❌ Город не найден. Введите название вручную:",
+        reply_markup=get_skip_keyboard()
+    )
+    
 @router.message(ProfileForm.waiting_for_birthday)
 async def process_birthday(message: Message, state: FSMContext):
     """Обработка введенной даты рождения"""
