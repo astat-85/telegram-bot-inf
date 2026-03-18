@@ -752,31 +752,45 @@ async def process_birthday(message: Message, state: FSMContext):
     
     text = message.text.strip()
     
+    # ===== ОБРАБОТКА ПРОПУСКА =====
     if text == "⏭ Пропустить":
-        # Пропускаем дату рождения
         data = await state.get_data()
         profile_data = data.get('profile_data', {})
+        edit_mode = data.get('edit_mode', False)
         
-        # Сохраняем профиль
         user_id = message.from_user.id
         username = message.from_user.username or f"user_{user_id}"
         
-        if profile_db is None:
-            await message.answer("❌ Ошибка инициализации профиля. Попробуйте позже.")
-            return
+        if edit_mode:
+            # Редактирование: обновляем профиль без изменения даты
+            current_profile = profile_db.get_profile(user_id)
+            if current_profile:
+                profile_db.save_profile(user_id, username, current_profile)
+                profile = profile_db.get_profile(user_id)
+            else:
+                profile_db.save_profile(user_id, username, profile_data)
+                profile = profile_db.get_profile(user_id)
+            
+            await message.answer(
+                "✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile),
+                reply_markup=get_profile_menu_keyboard(has_profile=True),
+                parse_mode="HTML"
+            )
+        else:
+            # Новый профиль: сохраняем как есть
+            profile_db.save_profile(user_id, username, profile_data)
+            profile = profile_db.get_profile(user_id)
+            
+            await message.answer(
+                "✅ <b>Профиль сохранен!</b>\n\n" + format_profile(profile),
+                reply_markup=get_profile_menu_keyboard(has_profile=True),
+                parse_mode="HTML"
+            )
         
-        profile_db.save_profile(user_id, username, profile_data)
-        
-        # Показываем готовый профиль
-        profile = profile_db.get_profile(user_id)
-        await message.answer(
-            "✅ <b>Профиль сохранен!</b>\n\n" + format_profile(profile),
-            reply_markup=get_profile_menu_keyboard(has_profile=True),
-            parse_mode="HTML"
-        )
         await state.clear()
         return
     
+    # ===== ОБРАБОТКА ОТМЕНЫ =====
     if text == "🚫 Отмена":
         data = await state.get_data()
         edit_mode = data.get('edit_mode', False)
@@ -792,7 +806,7 @@ async def process_birthday(message: Message, state: FSMContext):
             )
         return
     
-    # Парсим дату
+    # ===== ПАРСИНГ ДАТЫ =====
     parsed = parse_birthday(text)
     
     if not parsed:
@@ -808,7 +822,7 @@ async def process_birthday(message: Message, state: FSMContext):
     
     day, month, year = parsed
     
-    # Сохраняем дату
+    # ===== СОХРАНЯЕМ ДАТУ =====
     data = await state.get_data()
     profile_data = data.get('profile_data', {})
     profile_data['birth_day'] = day
@@ -816,24 +830,50 @@ async def process_birthday(message: Message, state: FSMContext):
     if year:
         profile_data['birth_year'] = year
     
-    # Сохраняем профиль в БД
+    await state.update_data(profile_data=profile_data)
+    
+    # ===== ПРОВЕРЯЕМ РЕЖИМ =====
+    edit_mode = data.get('edit_mode', False)
     user_id = message.from_user.id
     username = message.from_user.username or f"user_{user_id}"
     
-    if profile_db is None:
-        await message.answer("❌ Ошибка инициализации профиля. Попробуйте позже.")
-        return
-    
-    profile_db.save_profile(user_id, username, profile_data)
-    
-    # Показываем готовый профиль
-    profile = profile_db.get_profile(user_id)
-    await message.answer(
-        "✅ <b>Профиль сохранен!</b>\n\n" + format_profile(profile),
-        reply_markup=get_profile_menu_keyboard(has_profile=True),
-        parse_mode="HTML"
-    )
-    await state.clear()
+    if edit_mode:
+        # РЕЖИМ РЕДАКТИРОВАНИЯ - сразу показываем профиль
+        current_profile = profile_db.get_profile(user_id)
+        if current_profile:
+            # Обновляем только дату рождения
+            current_profile['birth_day'] = day
+            current_profile['birth_month'] = month
+            if year:
+                current_profile['birth_year'] = year
+            
+            profile_db.save_profile(user_id, username, current_profile)
+            profile = profile_db.get_profile(user_id)
+        else:
+            profile_db.save_profile(user_id, username, profile_data)
+            profile = profile_db.get_profile(user_id)
+        
+        await message.answer(
+            f"✅ <b>Дата рождения обновлена!</b>\n\n" + format_profile(profile),
+            reply_markup=get_profile_menu_keyboard(has_profile=True),
+            parse_mode="HTML"
+        )
+        await state.clear()
+    else:
+        # НОВЫЙ ПРОФИЛЬ - показываем подтверждение
+        date_str = f"{day:02d}.{month:02d}"
+        if year:
+            date_str += f".{year}"
+        
+        await message.answer(
+            f"✅ Дата рождения: {date_str}\n\n"
+            f"Профиль успешно заполнен!",
+            reply_markup=get_profile_menu_keyboard(has_profile=True)
+        )
+        
+        # Сохраняем профиль
+        profile_db.save_profile(user_id, username, profile_data)
+        await state.clear()
 
 @router.callback_query(F.data == "profile_view")
 async def profile_view(callback: CallbackQuery):
