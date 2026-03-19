@@ -40,7 +40,6 @@ class ProfileForm(StatesGroup):
 # Роутер для профиля
 router = Router()
 
-@router.callback_query()
 def format_timezone_offset(tzid: str) -> str:
     """
     Преобразует название часового пояса в смещение относительно Москвы
