@@ -947,54 +947,40 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("edit_gender_"))
 async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора пола при редактировании"""
-    await callback.answer("🔄 Обрабатываю...")
-    
     print(f"\n🔴🔴🔴 edit_gender_choice ВЫЗВАНА! 🔴🔴🔴")
     print(f"🔴 callback.data = '{callback.data}'")
-    print(f"🔴 user_id = {callback.from_user.id}")
-    print("🔴" * 30)
+    
+    await callback.answer()
     
     global profile_db
     
-    choice = callback.data.replace("edit_gender_", "")
-    
-    if choice == "male":
+    # Определяем пол
+    if callback.data == "edit_gender_male":
         gender = 'male'
         gender_text = "👨 Мужской"
-    elif choice == "female":
+    elif callback.data == "edit_gender_female":
         gender = 'female'
         gender_text = "👩 Женский"
     else:
-        await callback.message.edit_text(
-            "❌ Неверный выбор",
-            reply_markup=get_profile_menu_keyboard(has_profile=True)
-        )
         return
     
+    # Получаем профиль
     user_id = callback.from_user.id
-    username = callback.from_user.username or f"user_{user_id}"
-    
-    # ПОЛУЧАЕМ ТЕКУЩИЙ ПРОФИЛЬ ИЗ БД
     profile = profile_db.get_profile(user_id)
     
     if not profile:
-        await callback.message.edit_text(
-            "❌ Профиль не найден",
-            reply_markup=get_profile_menu_keyboard(has_profile=False)
-        )
+        await callback.message.edit_text("❌ Профиль не найден")
         return
     
-    # Обновляем пол
+    # Меняем пол
     profile['gender'] = gender
-    
-    # Сохраняем
+    username = callback.from_user.username or f"user_{user_id}"
     profile_db.save_profile(user_id, username, profile)
     
-    # Получаем обновленный профиль
-    updated_profile = profile_db.get_profile(user_id)
-    
+    # Показываем обновленный профиль
+    updated = profile_db.get_profile(user_id)
     await callback.message.edit_text(
-        f"✅ Пол изменён на: {gender_text}\n\n" + format_profile(updated_profile),
+        f"✅ Пол изменён на: {gender_text}\n\n" + format_profile(updated),
         reply_markup=get_profile_menu_keyboard(has_profile=True),
         parse_mode="HTML"
     )
