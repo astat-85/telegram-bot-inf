@@ -41,12 +41,6 @@ class ProfileForm(StatesGroup):
 router = Router()
 
 @router.callback_query()
-async def debug_all_callbacks(callback: CallbackQuery):
-    """Отлавливаем ВСЕ callback-запросы для отладки, но пропускаем дальше"""
-    print(f"\n🔍🔍🔍 ВСЕ CALLBACK: '{callback.data}' 🔍🔍🔍")
-    # Отвечаем, чтобы убрать "часики" на кнопке
-    await callback.answer()
-    # НЕ ВОЗВРАЩАЕМ Nothing, чтобы другие хендлеры тоже сработали
 def format_timezone_offset(tzid: str) -> str:
     """
     Преобразует название часового пояса в смещение относительно Москвы
