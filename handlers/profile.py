@@ -954,18 +954,16 @@ async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
     print(f"🔴 user_id = {callback.from_user.id}")
     print("🔴" * 30)
     
-    await callback.answer()
-    
     global profile_db
     
     choice = callback.data.replace("edit_gender_", "")
     
     if choice == "male":
         gender = 'male'
-        gender_text = "мужской"
+        gender_text = "👨 Мужской"
     elif choice == "female":
         gender = 'female'
-        gender_text = "женский"
+        gender_text = "👩 Женский"
     else:
         await callback.message.edit_text(
             "❌ Неверный выбор",
