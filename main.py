@@ -4019,9 +4019,6 @@ async def main():
         await dp.start_polling(bot)
     finally:
         db.close()
-        # Закрываем сессию aiohttp
-        if hasattr(bot, 'session') and bot.session:
-            await bot.session.close()
 
 if __name__ == "__main__":
     try:
