@@ -1871,8 +1871,10 @@ async def process_input(message: Message, state: FSMContext):
 
     field_name = FIELD_FULL_NAMES.get(field, field)
 
-         # ===== ОБРАБОТКА НИКА =====
+             # ===== ОБРАБОТКА НИКА =====
     if field == "nick":
+        print(f"🔍 ОБРАБОТКА НИКА: value='{value}', new={new}, account_id={account_id}")
+        
         if not value:
             await message.answer("❌ Ник не может быть пустым", reply_markup=get_cancel_kb())
             return
@@ -1886,12 +1888,16 @@ async def process_input(message: Message, state: FSMContext):
             return
 
         if new:
+            print(f"🔍 СОЗДАНИЕ НОВОГО АККАУНТА: user_id={user_id}, value='{value}'")
             acc = db.create_or_update_account(user_id, username, value)
+            print(f"🔍 РЕЗУЛЬТАТ СОЗДАНИЯ: acc={acc}")
             if acc:
                 # Спрашиваем о привязке к профилю
                 profile = profile_db.get_profile(user_id) if profile_db else None
+                print(f"🔍 ПРОВЕРКА ПРОФИЛЯ: user_id={user_id}, profile={profile}")
                 
                 if profile:
+                    print("✅ ПРОФИЛЬ НАЙДЕН, ПОКАЗЫВАЕМ ВОПРОС О ПРИВЯЗКЕ")
                     await message.answer(
                         f"✅ Аккаунт создан: {value}\n\n"
                         f"🔗 Привязать этот аккаунт к вашему профилю?",
@@ -1900,6 +1906,7 @@ async def process_input(message: Message, state: FSMContext):
                     await state.update_data(pending_account_id=acc.get('id'), pending_account_nick=value)
                     return
                 else:
+                    print("❌ ПРОФИЛЬ НЕ НАЙДЕН")
                     await message.answer(
                         f"✅ Аккаунт создан: {value}\n\n"
                         f"💡 Совет: заполните профиль командой /profile",
@@ -1908,6 +1915,7 @@ async def process_input(message: Message, state: FSMContext):
                     await state.clear()
                     return
             else:
+                print("❌ ОШИБКА СОЗДАНИЯ АККАУНТА")
                 await message.answer("❌ Ошибка создания", reply_markup=get_cancel_kb())
                 return
 
