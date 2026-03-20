@@ -1869,7 +1869,7 @@ async def process_input(message: Message, state: FSMContext):
 
     field_name = FIELD_FULL_NAMES.get(field, field)
 
-        # ===== ОБРАБОТКА НИКА =====
+         # ===== ОБРАБОТКА НИКА =====
     if field == "nick":
         if not value:
             await message.answer("❌ Ник не может быть пустым", reply_markup=get_cancel_kb())
