@@ -2226,16 +2226,13 @@ async def handle_backup_file(message: Message, state: FSMContext):
         if db.db_path.exists():
             os.remove(db.db_path)
         
-        # Копируем временный файл
+                # Копируем временный файл
         shutil.copy2(temp_path, db.db_path)
-
+        
         # Проверяем размеры
         temp_size = temp_path.stat().st_size
         copy_size = db.db_path.stat().st_size
         print(f"🔍 РАЗМЕРЫ: временный = {temp_size} байт, скопированный = {copy_size} байт")
-        if temp_size != copy_size:
-            print(f"❌ РАЗМЕРЫ НЕ СОВПАДАЮТ! Повторная попытка копирования...")
-            shutil.copy2(temp_path, db.db_path)
         
         # Проверяем временный файл
         print(f"🔍 ПРОВЕРКА ВРЕМЕННОГО ФАЙЛА {temp_path}:")
@@ -2251,7 +2248,7 @@ async def handle_backup_file(message: Message, state: FSMContext):
         except Exception as e:
             print(f"   Ошибка проверки: {e}")
         
-        # Проверяем скопированный файл
+        # Проверяем скопированный файл (ДО _connect)
         print(f"🔍 ПРОВЕРКА СКОПИРОВАННОГО ФАЙЛА {db.db_path}:")
         try:
             copy_conn = sqlite3.connect(str(db.db_path))
