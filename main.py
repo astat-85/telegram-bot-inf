@@ -4145,8 +4145,12 @@ async def check_database_on_startup():
         except:
             has_data = False
     
-    backups = sorted(BACKUP_DIR.glob("backup_*.db"), key=os.path.getmtime, reverse=True)
-    has_backups = len(backups) > 0
+    # Ищем все .db файлы в папке backups
+    all_db_files = sorted(BACKUP_DIR.glob("*.db"), key=os.path.getmtime, reverse=True)
+    # Фильтруем: показываем только backup_*.db для уведомления о наличии бэкапов
+    backup_files = [f for f in all_db_files if f.name.startswith("backup_")]
+    has_backups = len(backup_files) > 0
+    print(f"📁 Найдено бэкапов: {len(backup_files)}")
     
     print(f"\n📊 ПРОВЕРКА БД:")
     print(f"   Файл существует: {db_exists}")
