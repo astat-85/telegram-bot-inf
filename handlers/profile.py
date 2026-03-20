@@ -31,7 +31,8 @@ logger = logging.getLogger(__name__)
 
 # ========== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==========
 _check_subscription_func = None
-profile_db = None  # Будет установлено из main.py
+profile_db = None
+db = None
 city_db = CityDatabase()
 
 # Состояния FSM для заполнения профиля
@@ -744,9 +745,26 @@ async def process_birthday(message: Message, state: FSMContext):
             profile_data = data.get('profile_data', {})
             profile_db.save_profile(user_id, username, profile_data)
             profile = profile_db.get_profile(user_id)
-            linked_accounts = profile_db.get_linked_accounts(user_id)
+            
+            # Автопривязка существующих аккаунтов
+            linked_count = 0
+            if profile_db and db:
+                existing_accounts = db.get_user_accounts(user_id)
+                if existing_accounts:
+                    for acc in existing_accounts:
+                        acc_id = acc.get('id')
+                        if acc_id:
+                            if profile_db.link_account(user_id, acc_id):
+                                linked_count += 1
+            
+            linked_accounts = profile_db.get_linked_accounts(user_id) if profile_db else []
+            
+            response_text = "✅ <b>Профиль сохранен!</b>\n\n" + format_profile(profile, linked_accounts)
+            if linked_count > 0:
+                response_text += f"\n🎮 Автоматически привязано {linked_count} существующих аккаунтов."
+            
             await message.answer(
-                "✅ <b>Профиль сохранен!</b>\n\n" + format_profile(profile, linked_accounts),
+                response_text,
                 reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts)),
                 parse_mode="HTML"
             )
@@ -806,7 +824,6 @@ async def process_birthday(message: Message, state: FSMContext):
         if year:
             current_profile['birth_year'] = year
         else:
-            # Если год не указан - удаляем его
             if 'birth_year' in current_profile:
                 del current_profile['birth_year']
         
@@ -835,7 +852,6 @@ async def process_birthday(message: Message, state: FSMContext):
         if year:
             profile_data['birth_year'] = year
         else:
-            # Если год не указан - удаляем из данных
             if 'birth_year' in profile_data:
                 del profile_data['birth_year']
         
@@ -848,12 +864,34 @@ async def process_birthday(message: Message, state: FSMContext):
         # Сохраняем полный профиль
         profile_db.save_profile(user_id, username, profile_data)
         profile = profile_db.get_profile(user_id)
-        linked_accounts = profile_db.get_linked_accounts(user_id)
+        
+        # ===== АВТОМАТИЧЕСКАЯ ПРИВЯЗКА СУЩЕСТВУЮЩИХ АККАУНТОВ =====
+        linked_count = 0
+        if profile_db and db:
+            existing_accounts = db.get_user_accounts(user_id)
+            if existing_accounts:
+                for acc in existing_accounts:
+                    acc_id = acc.get('id')
+                    if acc_id:
+                        if profile_db.link_account(user_id, acc_id):
+                            linked_count += 1
+        
+        linked_accounts = profile_db.get_linked_accounts(user_id) if profile_db else []
+        
+        response_text = f"✅ Дата рождения: {date_str}\n\n"
+        response_text += f"Профиль успешно заполнен!\n\n"
+        
+        if linked_count > 0:
+            response_text += f"🎮 Автоматически привязано {linked_count} существующих аккаунтов.\n"
+        
+        if linked_accounts:
+            nicks = [acc.get('game_nickname', '?') for acc in linked_accounts[:5]]
+            response_text += f"📌 Привязанные ники: {', '.join(nicks)}"
+            if len(linked_accounts) > 5:
+                response_text += f" и еще {len(linked_accounts) - 5}"
         
         await message.answer(
-            f"✅ Дата рождения: {date_str}\n\n"
-            f"Профиль успешно заполнен!\n\n"
-            f"Теперь вы можете привязать игровые ники к профилю.",
+            response_text,
             reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts))
         )
         await state.clear()
