@@ -18,7 +18,12 @@ from keyboards.profile import (
     get_edit_profile_keyboard,
     get_city_choice_keyboard,
     get_skip_keyboard,
-    get_back_keyboard
+    get_back_keyboard,
+    get_accounts_management_keyboard,
+    get_link_account_keyboard,
+    get_confirm_unlink_keyboard,
+    get_unlink_success_keyboard,
+    get_no_accounts_to_link_keyboard
 )
 from cities.city_db import CityDatabase
 
@@ -36,6 +41,7 @@ class ProfileForm(StatesGroup):
     waiting_for_city = State()           # Ожидание города
     waiting_for_birthday = State()       # Ожидание даты рождения
     waiting_for_confirm = State()        # Подтверждение данных
+    waiting_for_account_link = State()   # Ожидание выбора привязки аккаунта
 
 # Роутер для профиля
 router = Router()
@@ -107,6 +113,55 @@ async def check_subscription_wrapper(user_id: int) -> bool:
     
     return await _check_subscription_func(user_id)
 
+def format_profile(profile: dict, linked_accounts: list = None) -> str:
+    """Форматирует данные профиля для вывода с привязанными никами"""
+    full_name = profile['first_name']
+    if profile.get('last_name'):
+        full_name = f"{profile['last_name']} {full_name}"
+    if profile.get('middle_name'):
+        full_name += f" {profile['middle_name']}"
+    
+    gender_text = "👨 Мужской" if profile['gender'] == 'male' else "👩 Женский" if profile['gender'] == 'female' else "—"
+    
+    if profile.get('birth_day') and profile.get('birth_month'):
+        birth = f"{profile['birth_day']:02d}.{profile['birth_month']:02d}"
+        if profile.get('birth_year'):
+            birth += f".{profile['birth_year']}"
+            age = datetime.now().year - profile['birth_year']
+            birth += f" ({age} лет)"
+    else:
+        birth = "—"
+    
+    location = profile.get('city', '—')
+    if profile.get('region'):
+        location += f", {profile['region']}"
+    
+    timezone = profile.get('timezone', 'Europe/Moscow')
+    timezone_display = format_timezone_offset(timezone)
+    
+    text = (
+        f"👤 <b>Мой профиль</b>\n\n"
+        f"<b>Имя:</b> {full_name}\n"
+        f"<b>Пол:</b> {gender_text}\n"
+        f"<b>Дата рождения:</b> {birth}\n"
+        f"<b>Город:</b> {location}\n"
+        f"<b>Часовой пояс:</b> {timezone_display}\n"
+    )
+    
+    # Привязанные ники
+    if linked_accounts:
+        nicks = [acc.get('game_nickname', '?') for acc in linked_accounts]
+        text += f"\n<b>🎮 Игровые ники:</b> {' / '.join(nicks)}\n"
+    else:
+        text += f"\n<b>🎮 Игровые ники:</b> не привязаны\n"
+    
+    if profile.get('location_manually_set'):
+        text += "\n<i>✅ Город указан вручную</i>\n"
+    else:
+        text += "\n<i>⏰ Часовой пояс: МСК (по умолчанию)</i>\n"
+    
+    return text
+
 @router.message(Command("profile"))
 @router.message(F.text == "👤 Мой профиль")
 async def cmd_profile(message: Message):
@@ -142,54 +197,14 @@ async def cmd_profile(message: Message):
             reply_markup=get_profile_menu_keyboard(has_profile=False)
         )
     else:
-        text = format_profile(profile)
+        # Получаем привязанные аккаунты
+        linked_accounts = profile_db.get_linked_accounts(user_id)
+        text = format_profile(profile, linked_accounts)
         await message.answer(
             text,
-            reply_markup=get_profile_menu_keyboard(has_profile=True),
+            reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts)),
             parse_mode="HTML"
         )
-
-def format_profile(profile: dict) -> str:
-    """Форматирует данные профиля для вывода"""
-    full_name = profile['first_name']
-    if profile.get('last_name'):
-        full_name = f"{profile['last_name']} {full_name}"
-    if profile.get('middle_name'):
-        full_name += f" {profile['middle_name']}"
-    
-    gender_text = "👨 Мужской" if profile['gender'] == 'male' else "👩 Женский" if profile['gender'] == 'female' else "—"
-    
-    if profile.get('birth_day') and profile.get('birth_month'):
-        birth = f"{profile['birth_day']:02d}.{profile['birth_month']:02d}"
-        if profile.get('birth_year'):
-            birth += f".{profile['birth_year']}"
-            age = datetime.now().year - profile['birth_year']
-            birth += f" ({age} лет)"
-    else:
-        birth = "—"
-    
-    location = profile.get('city', '—')
-    if profile.get('region'):
-        location += f", {profile['region']}"
-    
-    timezone = profile.get('timezone', 'Europe/Moscow')
-    timezone_display = format_timezone_offset(timezone)
-    
-    text = (
-        f"👤 <b>Мой профиль</b>\n\n"
-        f"<b>Имя:</b> {full_name}\n"
-        f"<b>Пол:</b> {gender_text}\n"
-        f"<b>Дата рождения:</b> {birth}\n"
-        f"<b>Город:</b> {location}\n"
-        f"<b>Часовой пояс:</b> {timezone_display}\n\n"
-    )
-    
-    if profile.get('location_manually_set'):
-        text += "<i>✅ Город указан вручную</i>\n"
-    else:
-        text += "<i>⏰ Часовой пояс: МСК (по умолчанию)</i>\n"
-    
-    return text
 
 @router.callback_query(F.data == "profile_fill")
 async def start_profile_fill(callback: CallbackQuery, state: FSMContext):
@@ -386,9 +401,10 @@ async def process_city(message: Message, state: FSMContext):
                 profile_db.save_profile(user_id, username, profile_data)
                 profile = profile_db.get_profile(user_id)
             
+            linked_accounts = profile_db.get_linked_accounts(user_id)
             await message.answer(
-                "✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile),
-                reply_markup=get_profile_menu_keyboard(has_profile=True),
+                "✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile, linked_accounts),
+                reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts)),
                 parse_mode="HTML"
             )
             await state.clear()
@@ -462,9 +478,10 @@ async def process_city(message: Message, state: FSMContext):
                 profile_db.save_profile(user_id, username, profile_data)
                 profile = profile_db.get_profile(user_id)
             
+            linked_accounts = profile_db.get_linked_accounts(user_id)
             await message.answer(
-                "✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile),
-                reply_markup=get_profile_menu_keyboard(has_profile=True),
+                "✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile, linked_accounts),
+                reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts)),
                 parse_mode="HTML"
             )
             await state.clear()
@@ -583,11 +600,12 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
                         profile_db.save_profile(user_id, username, profile_data)
                     
                     profile = profile_db.get_profile(user_id)
+                    linked_accounts = profile_db.get_linked_accounts(user_id)
                     await callback.message.answer(
                         f"✅ Город: {city_name}, {region_name}\n"
                         f"🕒 Часовой пояс: {format_timezone_offset(timezone)}\n\n"
-                        f"✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile),
-                        reply_markup=get_profile_menu_keyboard(has_profile=True),
+                        f"✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile, linked_accounts),
+                        reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts)),
                         parse_mode="HTML"
                     )
                     await state.clear()
@@ -667,11 +685,12 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
                 profile_db.save_profile(user_id, username, profile_data)
             
             profile = profile_db.get_profile(user_id)
+            linked_accounts = profile_db.get_linked_accounts(user_id)
             await callback.message.answer(
                 f"✅ Город: {city['name']}, {city['region']['name']}\n"
                 f"🕒 Часовой пояс: {format_timezone_offset(city['timezone']['tzid'])}\n\n"
-                f"✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile),
-                reply_markup=get_profile_menu_keyboard(has_profile=True),
+                f"✅ <b>Профиль обновлен!</b>\n\n" + format_profile(profile, linked_accounts),
+                reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts)),
                 parse_mode="HTML"
             )
             await state.clear()
@@ -709,9 +728,10 @@ async def process_birthday(message: Message, state: FSMContext):
             # При пропуске в режиме редактирования - просто показываем профиль
             profile = profile_db.get_profile(user_id)
             if profile:
+                linked_accounts = profile_db.get_linked_accounts(user_id)
                 await message.answer(
-                    "✅ <b>Профиль</b>\n\n" + format_profile(profile),
-                    reply_markup=get_profile_menu_keyboard(has_profile=True),
+                    "✅ <b>Профиль</b>\n\n" + format_profile(profile, linked_accounts),
+                    reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts)),
                     parse_mode="HTML"
                 )
             else:
@@ -724,9 +744,10 @@ async def process_birthday(message: Message, state: FSMContext):
             profile_data = data.get('profile_data', {})
             profile_db.save_profile(user_id, username, profile_data)
             profile = profile_db.get_profile(user_id)
+            linked_accounts = profile_db.get_linked_accounts(user_id)
             await message.answer(
-                "✅ <b>Профиль сохранен!</b>\n\n" + format_profile(profile),
-                reply_markup=get_profile_menu_keyboard(has_profile=True),
+                "✅ <b>Профиль сохранен!</b>\n\n" + format_profile(profile, linked_accounts),
+                reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts)),
                 parse_mode="HTML"
             )
         
@@ -794,14 +815,15 @@ async def process_birthday(message: Message, state: FSMContext):
         
         # Получаем обновленный профиль
         updated_profile = profile_db.get_profile(user_id)
+        linked_accounts = profile_db.get_linked_accounts(user_id)
         
         date_str = f"{day:02d}.{month:02d}"
         if year:
             date_str += f".{year}"
         
         await message.answer(
-            f"✅ <b>Дата рождения обновлена: {date_str}</b>\n\n" + format_profile(updated_profile),
-            reply_markup=get_profile_menu_keyboard(has_profile=True),
+            f"✅ <b>Дата рождения обновлена: {date_str}</b>\n\n" + format_profile(updated_profile, linked_accounts),
+            reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts)),
             parse_mode="HTML"
         )
         await state.clear()
@@ -826,11 +848,13 @@ async def process_birthday(message: Message, state: FSMContext):
         # Сохраняем полный профиль
         profile_db.save_profile(user_id, username, profile_data)
         profile = profile_db.get_profile(user_id)
+        linked_accounts = profile_db.get_linked_accounts(user_id)
         
         await message.answer(
             f"✅ Дата рождения: {date_str}\n\n"
-            f"Профиль успешно заполнен!",
-            reply_markup=get_profile_menu_keyboard(has_profile=True)
+            f"Профиль успешно заполнен!\n\n"
+            f"Теперь вы можете привязать игровые ники к профилю.",
+            reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts))
         )
         await state.clear()
 
@@ -851,9 +875,10 @@ async def profile_view(callback: CallbackQuery):
     profile = profile_db.get_profile(callback.from_user.id)
     
     if profile:
+        linked_accounts = profile_db.get_linked_accounts(callback.from_user.id)
         await callback.message.edit_text(
-            format_profile(profile),
-            reply_markup=get_profile_menu_keyboard(has_profile=True),
+            format_profile(profile, linked_accounts),
+            reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts)),
             parse_mode="HTML"
         )
     else:
@@ -979,8 +1004,211 @@ async def edit_gender_choice(callback: CallbackQuery, state: FSMContext):
     
     # Показываем обновленный профиль
     updated = profile_db.get_profile(user_id)
+    linked_accounts = profile_db.get_linked_accounts(user_id)
     await callback.message.edit_text(
-        f"✅ Пол изменён на: {gender_text}\n\n" + format_profile(updated),
-        reply_markup=get_profile_menu_keyboard(has_profile=True),
+        f"✅ Пол изменён на: {gender_text}\n\n" + format_profile(updated, linked_accounts),
+        reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts)),
+        parse_mode="HTML"
+    )
+
+# ========== НОВЫЕ ОБРАБОТЧИКИ ДЛЯ ПРИВЯЗКИ АККАУНТОВ ==========
+
+@router.callback_query(F.data == "profile_accounts")
+async def profile_accounts(callback: CallbackQuery, state: FSMContext):
+    """Показывает привязанные ники"""
+    await callback.answer()
+    
+    global profile_db
+    
+    user_id = callback.from_user.id
+    profile = profile_db.get_profile(user_id)
+    
+    if not profile:
+        await callback.message.edit_text(
+            "❌ Сначала заполните профиль",
+            reply_markup=get_profile_menu_keyboard(has_profile=False)
+        )
+        return
+    
+    linked_accounts = profile_db.get_linked_accounts(user_id)
+    
+    if linked_accounts:
+        text = "🎮 <b>Ваши игровые ники</b>\n\n"
+        for i, acc in enumerate(linked_accounts, 1):
+            nickname = acc.get('game_nickname', '?')
+            updated = acc.get('updated_at', '—')
+            text += f"{i}. {nickname}\n   📅 Обновлён: {updated}\n\n"
+        
+        text += "\n<i>Нажмите на ник, чтобы отвязать</i>"
+        
+        # Пагинация если много аккаунтов
+        per_page = 5
+        total_pages = (len(linked_accounts) + per_page - 1) // per_page
+        page = 1
+        
+        await callback.message.edit_text(
+            text,
+            reply_markup=get_accounts_management_keyboard(linked_accounts, page, total_pages),
+            parse_mode="HTML"
+        )
+    else:
+        # Нет привязанных ников
+        text = "🎮 <b>У вас нет привязанных игровых ников</b>\n\n"
+        text += "Вы можете:\n"
+        text += "• Привязать существующий аккаунт\n"
+        text += "• Создать новый аккаунт и привязать его"
+        
+        await callback.message.edit_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="➕ Привязать существующий ник", callback_data="link_existing_account")],
+                [InlineKeyboardButton(text="📝 Создать новый аккаунт", callback_data="new_account_from_profile")],
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data="profile_view")]
+            ])
+        )
+
+@router.callback_query(F.data == "link_existing_account")
+async def link_existing_account(callback: CallbackQuery, state: FSMContext):
+    """Привязка существующего аккаунта"""
+    await callback.answer()
+    
+    global profile_db
+    
+    user_id = callback.from_user.id
+    profile = profile_db.get_profile(user_id)
+    
+    if not profile:
+        await callback.message.edit_text(
+            "❌ Сначала заполните профиль",
+            reply_markup=get_profile_menu_keyboard(has_profile=False)
+        )
+        return
+    
+    # Получаем все аккаунты пользователя из main.py БД
+    # Здесь нужно получить доступ к основной БД
+    # Показываем список аккаунтов для привязки
+    # Временно отправляем сообщение
+    await callback.message.edit_text(
+        "🔍 <b>Привязка аккаунта</b>\n\n"
+        "Введите никнейм аккаунта, который хотите привязать:",
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⬅️ Назад", callback_data="profile_accounts")]
+        ])
+    )
+    await state.set_state(ProfileForm.waiting_for_account_link)
+
+@router.callback_query(F.data == "new_account_from_profile")
+async def new_account_from_profile(callback: CallbackQuery, state: FSMContext):
+    """Создание нового аккаунта из профиля"""
+    await callback.answer()
+    
+    # Перенаправляем на создание аккаунта в main.py
+    await callback.message.edit_text(
+        "➕ <b>Создание нового аккаунта</b>\n\n"
+        "Введите игровой ник:"
+    )
+    # Здесь нужно вызвать создание аккаунта из main.py
+    # Пока отправляем сообщение
+    await callback.message.answer(
+        "📝 Введите ник (2-50 символов):",
+        reply_markup=get_back_keyboard()
+    )
+    # TODO: Передать управление в main.py
+
+@router.callback_query(F.data.startswith("unlink_account_"))
+async def unlink_account(callback: CallbackQuery):
+    """Начало отвязки аккаунта"""
+    await callback.answer()
+    
+    global profile_db
+    
+    try:
+        account_id = int(callback.data.replace("unlink_account_", ""))
+    except:
+        await callback.answer("❌ Ошибка", show_alert=True)
+        return
+    
+    # Получаем информацию об аккаунте из main.py БД
+    # Временно показываем подтверждение
+    await callback.message.edit_text(
+        f"⚠️ <b>Подтверждение отвязки</b>\n\n"
+        f"Вы уверены, что хотите отвязать этот аккаунт?\n\n"
+        f"<i>Аккаунт останется в системе, но перестанет быть привязан к вашему профилю</i>",
+        reply_markup=get_confirm_unlink_keyboard(account_id, "")
+    )
+
+@router.callback_query(F.data.startswith("confirm_unlink_"))
+async def confirm_unlink(callback: CallbackQuery):
+    """Подтверждение отвязки аккаунта"""
+    await callback.answer()
+    
+    global profile_db
+    
+    try:
+        account_id = int(callback.data.replace("confirm_unlink_", ""))
+    except:
+        await callback.answer("❌ Ошибка", show_alert=True)
+        return
+    
+    user_id = callback.from_user.id
+    profile = profile_db.get_profile(user_id)
+    
+    if not profile:
+        await callback.message.edit_text("❌ Профиль не найден")
+        return
+    
+    # Отвязываем аккаунт
+    if profile_db.unlink_account(user_id, account_id):
+        await callback.message.edit_text(
+            "✅ Аккаунт успешно отвязан",
+            reply_markup=get_unlink_success_keyboard()
+        )
+    else:
+        await callback.message.edit_text(
+            "❌ Ошибка при отвязке",
+            reply_markup=get_unlink_success_keyboard()
+        )
+
+@router.callback_query(F.data.startswith("accounts_page_"))
+async def accounts_page(callback: CallbackQuery):
+    """Переключение страниц в списке привязанных аккаунтов"""
+    await callback.answer()
+    
+    global profile_db
+    
+    try:
+        page = int(callback.data.replace("accounts_page_", ""))
+    except:
+        page = 1
+    
+    user_id = callback.from_user.id
+    linked_accounts = profile_db.get_linked_accounts(user_id)
+    
+    if not linked_accounts:
+        await callback.message.edit_text(
+            "🎮 Нет привязанных ников",
+            reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=False)
+        )
+        return
+    
+    per_page = 5
+    total_pages = (len(linked_accounts) + per_page - 1) // per_page
+    page = max(1, min(page, total_pages))
+    
+    start = (page - 1) * per_page
+    end = min(start + per_page, len(linked_accounts))
+    accounts_page = linked_accounts[start:end]
+    
+    text = "🎮 <b>Ваши игровые ники</b>\n\n"
+    for i, acc in enumerate(accounts_page, start + 1):
+        nickname = acc.get('game_nickname', '?')
+        updated = acc.get('updated_at', '—')
+        text += f"{i}. {nickname}\n   📅 Обновлён: {updated}\n\n"
+    
+    text += "\n<i>Нажмите на ник, чтобы отвязать</i>"
+    
+    await callback.message.edit_text(
+        text,
+        reply_markup=get_accounts_management_keyboard(accounts_page, page, total_pages),
         parse_mode="HTML"
     )
