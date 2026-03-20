@@ -2229,24 +2229,10 @@ async def handle_backup_file(message: Message, state: FSMContext):
         # Копируем временный файл
         shutil.copy2(temp_path, db.db_path)
         
-        # ПРОВЕРКА: выводим информацию о файле
-        print(f"🔍 ПУТЬ К БД: {db.db_path}")
-        print(f"🔍 АБСОЛЮТНЫЙ ПУТЬ: {os.path.abspath(db.db_path)}")
-        print(f"🔍 ФАЙЛ СУЩЕСТВУЕТ: {os.path.exists(db.db_path)}")
-        print(f"🔍 ФАЙЛ ДОСТУПЕН ДЛЯ ЧТЕНИЯ: {os.access(db.db_path, os.R_OK)}")
-        
         # Проверяем размеры
         temp_size = temp_path.stat().st_size
         copy_size = db.db_path.stat().st_size
         print(f"🔍 РАЗМЕРЫ: временный = {temp_size} байт, скопированный = {copy_size} байт")
-        
-        # Читаем первые байты файла
-        try:
-            with open(db.db_path, 'rb') as f:
-                header = f.read(50)
-                print(f"🔍 ПЕРВЫЕ 50 БАЙТ: {header}")
-        except Exception as e:
-            print(f"   Ошибка чтения: {e}")
         
         # Проверяем временный файл
         print(f"🔍 ПРОВЕРКА ВРЕМЕННОГО ФАЙЛА {temp_path}:")
@@ -2262,72 +2248,95 @@ async def handle_backup_file(message: Message, state: FSMContext):
         except Exception as e:
             print(f"   Ошибка проверки: {e}")
         
-        # Проверяем скопированный файл
-        print(f"🔍 ПРОВЕРКА СКОПИРОВАННОГО ФАЙЛА {db.db_path}:")
-        try:
-            # Используем uri=True для принудительного открытия
-            copy_conn = sqlite3.connect(f"file:{db.db_path}?mode=ro", uri=True)
-            copy_cursor = copy_conn.cursor()
-            copy_cursor.execute("SELECT COUNT(*) FROM users")
-            copy_users = copy_cursor.fetchone()[0]
-            copy_cursor.execute("SELECT COUNT(*) FROM user_profiles")
-            copy_profiles = copy_cursor.fetchone()[0]
-            print(f"   users = {copy_users}, profiles = {copy_profiles}")
-            copy_conn.close()
-        except Exception as e:
-            print(f"   Ошибка проверки: {e}")
-        
-        # Также попробуем открыть с помощью os.open
-        print(f"🔍 ПРОВЕРКА ЧЕРЕЗ os.open:")
-        try:
-            import mmap
-            with open(db.db_path, 'rb') as f:
-                # Проверяем, что файл можно читать
-                f.seek(0, 2)
-                size = f.tell()
-                print(f"   Размер файла: {size}")
-                f.seek(0)
-                # Читаем заголовок таблиц
-                data = f.read(4096)
-                if b'CREATE TABLE users' in data:
-                    print("   ✅ Найдена структура таблицы users")
-                if b'CREATE TABLE user_profiles' in data:
-                    print("   ✅ Найдена структура таблицы user_profiles")
-        except Exception as e:
-            print(f"   Ошибка: {e}")
-        
         db._connect()
         
-        if db.check_integrity():
-            db._execute("SELECT COUNT(*) FROM users")
-            users_count = db.cursor.fetchone()[0]
-            db._execute("SELECT COUNT(*) FROM user_profiles")
-            profiles_count = db.cursor.fetchone()[0]
-            
-            print(f"🔍 Восстановленная БД (после _connect): users={users_count}, profiles={profiles_count}")
-            
-            if users_count > 0 or profiles_count > 0:
-                await status_msg.edit_text(
-                    f"✅ База данных восстановлена!\n\n"
-                    f"📊 Аккаунтов: {users_count}\n"
-                    f"👤 Профилей: {profiles_count}\n"
-                    f"💾 Предыдущая БД сохранена как: {current_backup.name}"
-                )
-            else:
-                if current_backup.exists():
-                    db.close()
-                    shutil.copy2(current_backup, db.db_path)
-                    db._connect()
-                await status_msg.edit_text(
-                    "❌ В загруженном файле нет данных (пустые таблицы).\n"
-                    "Восстановлена предыдущая БД."
-                )
+        # Принудительно создаём таблицы
+        db._create_tables()
+        
+        # Проверяем, есть ли данные после создания таблиц
+        db._execute("SELECT COUNT(*) FROM users")
+        users_count = db.cursor.fetchone()[0]
+        db._execute("SELECT COUNT(*) FROM user_profiles")
+        profiles_count = db.cursor.fetchone()[0]
+        
+        print(f"🔍 После _create_tables: users={users_count}, profiles={profiles_count}")
+        
+        # Если данных нет, пробуем скопировать вручную из временного файла
+        if users_count == 0 and profiles_count == 0:
+            print("🔍 Данных нет, пробуем скопировать данные из временного файла...")
+            try:
+                src_conn = sqlite3.connect(str(temp_path))
+                src_conn.row_factory = sqlite3.Row
+                src_cursor = src_conn.cursor()
+                
+                # Копируем users
+                src_cursor.execute("SELECT * FROM users")
+                users_data = src_cursor.fetchall()
+                print(f"   Найдено users: {len(users_data)}")
+                
+                for row in users_data:
+                    db._execute("""
+                        INSERT OR REPLACE INTO users 
+                        (id, user_id, username, game_nickname, power, bm, pl1, pl2, pl3, dragon, buffs_stands, buffs_research, updated_at, created_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (row['id'], row['user_id'], row['username'], row['game_nickname'], 
+                          row['power'], row['bm'], row['pl1'], row['pl2'], row['pl3'], 
+                          row['dragon'], row['buffs_stands'], row['buffs_research'], 
+                          row['updated_at'], row['created_at']))
+                
+                # Копируем user_profiles
+                src_cursor.execute("SELECT * FROM user_profiles")
+                profiles_data = src_cursor.fetchall()
+                print(f"   Найдено profiles: {len(profiles_data)}")
+                
+                for row in profiles_data:
+                    db._execute("""
+                        INSERT OR REPLACE INTO user_profiles 
+                        (user_id, username, first_name, last_name, middle_name, gender, birth_day, birth_month, birth_year, city, region, timezone, location_manually_set, is_active, last_active, archived_at, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (row['user_id'], row['username'], row['first_name'], row['last_name'], 
+                          row['middle_name'], row['gender'], row['birth_day'], row['birth_month'], 
+                          row['birth_year'], row['city'], row['region'], row['timezone'], 
+                          row['location_manually_set'], row['is_active'], row['last_active'], 
+                          row['archived_at'], row['created_at'], row['updated_at']))
+                
+                db.conn.commit()
+                src_conn.close()
+                
+                # Проверяем результат
+                db._execute("SELECT COUNT(*) FROM users")
+                users_count = db.cursor.fetchone()[0]
+                db._execute("SELECT COUNT(*) FROM user_profiles")
+                profiles_count = db.cursor.fetchone()[0]
+                print(f"   После ручного копирования: users={users_count}, profiles={profiles_count}")
+                
+            except Exception as e:
+                print(f"   Ошибка ручного копирования: {e}")
+        
+        # Финальная проверка
+        db._execute("SELECT COUNT(*) FROM users")
+        users_count = db.cursor.fetchone()[0]
+        db._execute("SELECT COUNT(*) FROM user_profiles")
+        profiles_count = db.cursor.fetchone()[0]
+        
+        print(f"🔍 Восстановленная БД (финал): users={users_count}, profiles={profiles_count}")
+        
+        if users_count > 0 or profiles_count > 0:
+            await status_msg.edit_text(
+                f"✅ База данных восстановлена!\n\n"
+                f"📊 Аккаунтов: {users_count}\n"
+                f"👤 Профилей: {profiles_count}\n"
+                f"💾 Предыдущая БД сохранена как: {current_backup.name}"
+            )
         else:
             if current_backup.exists():
                 db.close()
                 shutil.copy2(current_backup, db.db_path)
                 db._connect()
-            await status_msg.edit_text("❌ Загруженный файл поврежден. Восстановлена предыдущая БД.")
+            await status_msg.edit_text(
+                "❌ В загруженном файле нет данных (пустые таблицы).\n"
+                "Восстановлена предыдущая БД."
+            )
         
     except Exception as e:
         logger.error(f"Ошибка восстановления: {e}")
@@ -2343,6 +2352,7 @@ async def handle_backup_file(message: Message, state: FSMContext):
         except:
             pass
         await state.clear()
+        
 # ========== ОБЩИЙ ХЕНДЛЕР ==========
 @router.message(F.chat.type == "private")
 async def any_message(message: Message, state: FSMContext):
