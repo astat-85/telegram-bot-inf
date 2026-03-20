@@ -2222,7 +2222,8 @@ async def handle_backup_file(message: Message, state: FSMContext):
         
         db.close()
         shutil.copy2(temp_path, db.db_path)
-         # Проверяем временный файл перед открытием
+        
+        # Проверяем временный файл
         print(f"🔍 ПРОВЕРКА ВРЕМЕННОГО ФАЙЛА {temp_path}:")
         try:
             test_conn = sqlite3.connect(str(temp_path))
@@ -2235,14 +2236,12 @@ async def handle_backup_file(message: Message, state: FSMContext):
             test_conn.close()
         except Exception as e:
             print(f"   Ошибка проверки: {e}")
+        
         db._connect()
         
         if db.check_integrity():
-            # Получаем количество аккаунтов
             db._execute("SELECT COUNT(*) FROM users")
             users_count = db.cursor.fetchone()[0]
-            
-            # Получаем количество профилей
             db._execute("SELECT COUNT(*) FROM user_profiles")
             profiles_count = db.cursor.fetchone()[0]
             
