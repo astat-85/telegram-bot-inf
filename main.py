@@ -137,28 +137,18 @@ try:
         get_no_accounts_to_link_keyboard
     )
 
-      # ========== ГЛОБАЛЬНЫЕ ССЫЛКИ ==========
+     # ========== ГЛОБАЛЬНЫЕ ССЫЛКИ ==========
     _check_subscription_func = None
-
-    # Создаём сессию с увеличенными таймаутами
-    import aiohttp
-    connector = aiohttp.TCPConnector(
-        ssl=False,
-        ttl_dns_cache=300,
-        force_close=True
-    )
-    timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_connect=10, sock_read=10)
-    session = aiohttp.ClientSession(connector=connector, timeout=timeout)
 
     import aiogram
     if aiogram.__version__.startswith('3'):
         try:
             from aiogram.client.default import DefaultBotProperties
-            bot = Bot(token=BOT_TOKEN, session=session, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
+            bot = Bot(token=BOT_TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
         except ImportError:
-            bot = Bot(token=BOT_TOKEN, session=session, parse_mode=ParseMode.HTML)
+            bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
     else:
-        bot = Bot(token=BOT_TOKEN, session=session, parse_mode=ParseMode.HTML)
+        bot = Bot(token=BOT_TOKEN, parse_mode=ParseMode.HTML)
 
     print(f"✅ Aiogram {aiogram.__version__}")
 except ImportError as e:
