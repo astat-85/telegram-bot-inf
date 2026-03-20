@@ -2254,6 +2254,20 @@ async def handle_backup_file(message: Message, state: FSMContext):
             print(f"   users = {copy_users}, profiles = {copy_profiles}")
             copy_conn.close()
         except Exception as e:
+            print(f"   Ошибка: {e}")
+        
+        # Проверяем скопированный файл
+        print(f"🔍 ПРОВЕРКА СКОПИРОВАННОГО ФАЙЛА {db.db_path}:")
+        try:
+            copy_conn = sqlite3.connect(str(db.db_path))
+            copy_cursor = copy_conn.cursor()
+            copy_cursor.execute("SELECT COUNT(*) FROM users")
+            copy_users = copy_cursor.fetchone()[0]
+            copy_cursor.execute("SELECT COUNT(*) FROM user_profiles")
+            copy_profiles = copy_cursor.fetchone()[0]
+            print(f"   users = {copy_users}, profiles = {copy_profiles}")
+            copy_conn.close()
+        except Exception as e:
             print(f"   Ошибка: {e}"
         
         # Проверяем скопированный файл (ДО _connect)
