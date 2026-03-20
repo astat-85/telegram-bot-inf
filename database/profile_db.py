@@ -36,6 +36,8 @@ class ProfileDB:
         self.lock = threading.RLock()
         if db:
             self._create_tables()
+            self.init_default_data()
+
     
     def _create_tables(self):
         """Создает таблицу профилей, если её нет (с новыми полями)"""
