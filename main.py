@@ -1106,7 +1106,8 @@ city_db = CityDatabase()
 # ========== ПЕРЕДАЁМ ЭКЗЕМПЛЯР PROFILE_DB В МОДУЛЬ ПРОФИЛЯ ==========
 import handlers.profile
 handlers.profile.profile_db = profile_db
-print("✅ Экземпляр ProfileDB передан в handlers.profile")
+handlers.profile.db = db
+print("✅ Экземпляр ProfileDB и DB передан в handlers.profile")
 
 # ========== ПЕРЕДАЁМ ФУНКЦИЮ ПРОВЕРКИ ПОДПИСКИ В ПРОФИЛЬ ==========
 handlers.profile._check_subscription_func = check_subscription
