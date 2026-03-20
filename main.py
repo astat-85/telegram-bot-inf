@@ -2221,6 +2221,12 @@ async def handle_backup_file(message: Message, state: FSMContext):
             shutil.copy2(db.db_path, current_backup)
         
         db.close()
+        
+        # Удаляем старый файл БД
+        if db.db_path.exists():
+            os.remove(db.db_path)
+        
+        # Копируем временный файл
         shutil.copy2(temp_path, db.db_path)
         
         # Проверяем временный файл
@@ -2237,6 +2243,20 @@ async def handle_backup_file(message: Message, state: FSMContext):
         except Exception as e:
             print(f"   Ошибка проверки: {e}")
         
+        # Проверяем скопированный файл
+        print(f"🔍 ПРОВЕРКА СКОПИРОВАННОГО ФАЙЛА {db.db_path}:")
+        try:
+            copy_conn = sqlite3.connect(str(db.db_path))
+            copy_cursor = copy_conn.cursor()
+            copy_cursor.execute("SELECT COUNT(*) FROM users")
+            copy_users = copy_cursor.fetchone()[0]
+            copy_cursor.execute("SELECT COUNT(*) FROM user_profiles")
+            copy_profiles = copy_cursor.fetchone()[0]
+            print(f"   users = {copy_users}, profiles = {copy_profiles}")
+            copy_conn.close()
+        except Exception as e:
+            print(f"   Ошибка проверки: {e}")
+        
         db._connect()
         
         if db.check_integrity():
@@ -2245,7 +2265,7 @@ async def handle_backup_file(message: Message, state: FSMContext):
             db._execute("SELECT COUNT(*) FROM user_profiles")
             profiles_count = db.cursor.fetchone()[0]
             
-            print(f"🔍 Восстановленная БД: users={users_count}, profiles={profiles_count}")
+            print(f"🔍 Восстановленная БД (после _connect): users={users_count}, profiles={profiles_count}")
             
             if users_count > 0 or profiles_count > 0:
                 await status_msg.edit_text(
