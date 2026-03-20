@@ -2911,9 +2911,14 @@ async def db_restore_menu(callback: CallbackQuery):
         await callback.answer("🚫 Доступ запрещен", show_alert=True)
         return
     
-    backups = sorted(BACKUP_DIR.glob("backup_*.db"), key=os.path.getmtime, reverse=True)
-    root_backups = sorted(BASE_DIR.glob("backup_*.db"), key=os.path.getmtime, reverse=True)
-    all_backups = backups + root_backups
+        # Ищем только backup_*.db файлы
+        backups = sorted(BACKUP_DIR.glob("backup_*.db"), key=os.path.getmtime, reverse=True)
+        root_backups = sorted(BASE_DIR.glob("backup_*.db"), key=os.path.getmtime, reverse=True)
+        all_backups = backups + root_backups
+        
+        # Если нет backup_*.db, показываем все .db
+        if not all_backups:
+            all_backups = sorted(BACKUP_DIR.glob("*.db"), key=os.path.getmtime, reverse=True)
     
     if not all_backups:
         await callback.message.edit_text(
