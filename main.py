@@ -1883,22 +1883,22 @@ async def process_input(message: Message, state: FSMContext):
             await message.answer(f"❌ Ник '{value}' уже используется", reply_markup=get_cancel_kb())
             return
 
-        if new:
+    if new:
     acc = db.create_or_update_account(user_id, username, value)
-    if acc:
-        print(f"🔍 ПРОВЕРКА ПРИВЯЗКИ: user_id={user_id}")
-        # Спрашиваем о привязке к профилю
-        profile = profile_db.get_profile(user_id) if profile_db else None
-        print(f"🔍 profile_db.get_profile({user_id}) = {profile}")
-        
-        if profile:
-            print("✅ ПРОФИЛЬ НАЙДЕН, ПОКАЗЫВАЕМ ВОПРОС О ПРИВЯЗКЕ")
-            await message.answer(
-                f"✅ Аккаунт создан: {value}\n\n"
-                f"🔗 Привязать этот аккаунт к вашему профилю?",
-                reply_markup=get_link_account_keyboard()
-            )
-            await state.update_data(pending_account_id=acc.get('id'), pending_account_nick=value)
+        if acc:
+           print(f"🔍 ПРОВЕРКА ПРИВЯЗКИ: user_id={user_id}")
+           # Спрашиваем о привязке к профилю
+           profile = profile_db.get_profile(user_id) if profile_db else None
+           print(f"🔍 profile_db.get_profile({user_id}) = {profile}")
+          
+           if profile:
+              print("✅ ПРОФИЛЬ НАЙДЕН, ПОКАЗЫВАЕМ ВОПРОС О ПРИВЯЗКЕ")
+              await message.answer(
+                  f"✅ Аккаунт создан: {value}\n\n"
+                  f"🔗 Привязать этот аккаунт к вашему профилю?",
+                  reply_markup=get_link_account_keyboard()
+               )
+               await state.update_data(pending_account_id=acc.get('id'), pending_account_nick=value)
             return
         else:
             print("❌ ПРОФИЛЬ НЕ НАЙДЕН")
