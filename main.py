@@ -2212,7 +2212,8 @@ async def check_subscription_before_create(callback: CallbackQuery, state: FSMCo
     is_subscribed = await check_subscription(user_id)
     
     if is_subscribed:
-        await callback.message.edit_text(
+        # Отправляем новое сообщение вместо редактирования
+        await callback.message.answer(
             "✅ <b>Подписка подтверждена!</b>\n\n"
             "➕ Введите игровой ник:"
         )
@@ -2227,6 +2228,8 @@ async def check_subscription_before_create(callback: CallbackQuery, state: FSMCo
             first=len(db.get_user_accounts(user_id)) == 0,
             temp=""
         )
+        # Удаляем старое сообщение
+        await callback.message.delete()
     else:
         group_info = "целевую группу"
         if TARGET_CHAT_ID:
@@ -2236,7 +2239,8 @@ async def check_subscription_before_create(callback: CallbackQuery, state: FSMCo
             except:
                 pass
         
-        await callback.message.edit_text(
+        # Отправляем новое сообщение вместо редактирования
+        await callback.message.answer(
             f"❌ <b>Подписка не найдена</b>\n\n"
             f"Убедитесь, что вы вступили в {group_info}, и попробуйте снова.",
             reply_markup=InlineKeyboardMarkup(inline_keyboard=[
@@ -2244,6 +2248,8 @@ async def check_subscription_before_create(callback: CallbackQuery, state: FSMCo
                 [InlineKeyboardButton(text="🏠 Меню", callback_data="menu")]
             ])
         )
+        # Удаляем старое сообщение
+        await callback.message.delete()
     
     await callback.answer()
 
