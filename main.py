@@ -508,7 +508,7 @@ class Database:
             logger.error(f"Ошибка delete_account: {e}")
             return False
 
-        @retry_on_db_lock()
+    @retry_on_db_lock()
     def get_all_accounts(self) -> List[Dict]:
         if not self.conn:
             self._connect()
