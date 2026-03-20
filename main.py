@@ -508,27 +508,40 @@ class Database:
             logger.error(f"Ошибка delete_account: {e}")
             return False
 
-    @retry_on_db_lock()
+        @retry_on_db_lock()
     def get_all_accounts(self) -> List[Dict]:
         if not self.conn:
             self._connect()
             
         try:
             self._execute("""
-            SELECT
-                id, user_id, username,
-                COALESCE(game_nickname, '') as game_nickname,
-                COALESCE(power, '—') as power,
-                COALESCE(bm, '—') as bm,
-                COALESCE(pl1, '—') as pl1,
-                COALESCE(pl2, '—') as pl2,
-                COALESCE(pl3, '—') as pl3,
-                COALESCE(dragon, '—') as dragon,
-                COALESCE(buffs_stands, '—') as buffs_stands,
-                COALESCE(buffs_research, '—') as buffs_research,
-                created_at, updated_at
-            FROM users
-            ORDER BY updated_at DESC
+            SELECT 
+                u.id,
+                u.user_id,
+                u.username,
+                u.game_nickname,
+                u.power,
+                u.bm,
+                u.pl1,
+                u.pl2,
+                u.pl3,
+                u.dragon,
+                u.buffs_stands,
+                u.buffs_research,
+                u.created_at,
+                u.updated_at,
+                p.first_name,
+                p.last_name,
+                p.middle_name,
+                p.city,
+                p.region,
+                p.timezone,
+                p.birth_day,
+                p.birth_month,
+                p.birth_year
+            FROM users u
+            LEFT JOIN user_profiles p ON u.user_id = p.user_id
+            ORDER BY u.updated_at DESC
             """)
             return [dict(row) for row in self.cursor.fetchall()]
         except Exception as e:
