@@ -4172,22 +4172,6 @@ async def check_database_on_startup():
         print(f"✅ БД в порядке. Данных: {len(db.get_all_accounts())} аккаунтов")
     
     print("-" * 50)
-    
-    if not has_data:
-        print("⚠️ БД пустая или отсутствует!")
-        
-        if ADMIN_IDS:
-            print("👑 Спрашиваю админов...")
-            await ask_admin_what_to_do()
-            print("⏳ Ожидание выбора админа...")
-        else:
-            print("⚠️ Админы не настроены. Создаю новую пустую БД...")
-            db._connect()
-            db._create_tables()
-    else:
-        print(f"✅ БД в порядке. Данных: {len(db.get_all_accounts())} аккаунтов")
-    
-    print("-" * 50)
 
 @router.callback_query(F.data.startswith("restore_"))
 async def handle_restore_choice(callback: CallbackQuery, state: FSMContext):
