@@ -697,8 +697,8 @@ class Database:
             traceback.print_exc()
             return None
 
-    def export_to_csv(self, filename: str = None) -> Optional[str]:
-        """Экспорт в CSV"""
+        def export_to_csv(self, filename: str = None) -> Optional[str]:
+        """Экспорт в CSV с данными из профиля"""
         if not self.conn:
             self._connect()
             
@@ -739,8 +739,9 @@ class Database:
             with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f, delimiter=';')
                 writer.writerow([
-                    "№", "Группа", "Ник в игре", "Эл", "БМ", "Пл 1", "Пл 2", "Пл 3",
-                    "Др", "БС", "БИ", "ID имя", "ID номер", "Время", "Дата"
+                    "№", "Группа", "Ник в игре", "ФИО", "Город", "Дата рождения", "Часовой пояс",
+                    "Эл", "БМ", "Пл 1", "Пл 2", "Пл 3", "Др", "БС", "БИ",
+                    "ID имя", "ID номер", "Время", "Дата"
                 ])
 
                 for i, acc in enumerate(accounts, 1):
@@ -756,6 +757,32 @@ class Database:
                         except:
                             pass
 
+                    # ФИО
+                    first_name = acc.get('first_name', '')
+                    last_name = acc.get('last_name', '')
+                    middle_name = acc.get('middle_name', '')
+                    full_name = f"{last_name} {first_name} {middle_name}".strip()
+                    
+                    # Город
+                    city = acc.get('city', '')
+                    region = acc.get('region', '')
+                    location = f"{city}, {region}" if city and region else city or region or ''
+                    
+                    # Дата рождения
+                    birth_day = acc.get('birth_day')
+                    birth_month = acc.get('birth_month')
+                    birth_year = acc.get('birth_year')
+                    birth_date = ''
+                    if birth_day and birth_month:
+                        birth_date = f"{birth_day:02d}.{birth_month:02d}"
+                        if birth_year:
+                            birth_date += f".{birth_year}"
+                    
+                    # Часовой пояс
+                    timezone = acc.get('timezone', 'Europe/Moscow')
+                    from handlers.profile import format_timezone_offset as fmt_tz
+                    timezone_display = fmt_tz(timezone)
+                    
                     bm = format_number(acc.get('bm', ''))
                     pl1 = format_number(acc.get('pl1', ''))
                     pl2 = format_number(acc.get('pl2', ''))
@@ -783,6 +810,7 @@ class Database:
 
                     writer.writerow([
                         i, group, acc.get('game_nickname', ''),
+                        full_name, location, birth_date, timezone_display,
                         power, bm, pl1, pl2, pl3,
                         dragon, buffs_stands, buffs_research,
                         username, user_id, time_str, date_str
@@ -794,8 +822,8 @@ class Database:
             logger.error(f"❌ Ошибка экспорта CSV: {e}")
             return None
 
-    def export_to_excel(self, filename: str = None) -> Optional[str]:
-        """Экспорт в Excel"""
+        def export_to_excel(self, filename: str = None) -> Optional[str]:
+        """Экспорт в Excel с данными из профиля"""
         if not self.conn:
             self._connect()
         
@@ -836,8 +864,9 @@ class Database:
             ws.title = "Игроки"
 
             headers = [
-                "№", "Группа", "Ник в игре", "Эл", "БМ", "Пл 1", "Пл 2", "Пл 3",
-                "Др", "БС", "БИ", "ID имя", "ID номер", "Время", "Дата"
+                "№", "Группа", "Ник в игре", "ФИО", "Город", "Дата рождения", "Часовой пояс",
+                "Эл", "БМ", "Пл 1", "Пл 2", "Пл 3", "Др", "БС", "БИ",
+                "ID имя", "ID номер", "Время", "Дата"
             ]
             
             header_fill = PatternFill(start_color="366092", end_color="366092", fill_type="solid")
@@ -871,6 +900,32 @@ class Database:
                         date_str = dt.strftime('%d.%m.%Y')
                     except:
                         pass
+
+                # ФИО
+                first_name = acc.get('first_name', '')
+                last_name = acc.get('last_name', '')
+                middle_name = acc.get('middle_name', '')
+                full_name = f"{last_name} {first_name} {middle_name}".strip()
+                
+                # Город
+                city = acc.get('city', '')
+                region = acc.get('region', '')
+                location = f"{city}, {region}" if city and region else city or region or ''
+                
+                # Дата рождения
+                birth_day = acc.get('birth_day')
+                birth_month = acc.get('birth_month')
+                birth_year = acc.get('birth_year')
+                birth_date = ''
+                if birth_day and birth_month:
+                    birth_date = f"{birth_day:02d}.{birth_month:02d}"
+                    if birth_year:
+                        birth_date += f".{birth_year}"
+                
+                # Часовой пояс
+                timezone = acc.get('timezone', 'Europe/Moscow')
+                from handlers.profile import format_timezone_offset as fmt_tz
+                timezone_display = fmt_tz(timezone)
 
                 bm = format_number(acc.get('bm', ''))
                 pl1 = format_number(acc.get('pl1', ''))
@@ -910,6 +965,7 @@ class Database:
 
                 row_data = [
                     i, group, acc.get('game_nickname', ''),
+                    full_name, location, birth_date, timezone_display,
                     power, bm, pl1, pl2, pl3,
                     dragon, buffs_stands, buffs_research,
                     f"@{acc.get('username', '')}" if acc.get('username') else '',
@@ -919,11 +975,11 @@ class Database:
                 for col, value in enumerate(row_data, 1):
                     cell = ws.cell(row=i+1, column=col, value=value)
                     
-                    if col == 12:
+                    if col == 16:
                         cell.alignment = Alignment(horizontal='left')
-                    elif col in [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 13]:
+                    elif col in [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17]:
                         cell.alignment = Alignment(horizontal='right')
-                        if col in [5, 6, 7, 8]:
+                        if col in [9, 10, 11, 12]:
                             cell.number_format = '#,##0.0'
                     else:
                         cell.alignment = Alignment(horizontal='center')
@@ -937,7 +993,7 @@ class Database:
                         max_length = max(max_length, len(str(cell_value)))
                 
                 width = max(max_length + 3, 8)
-                ws.column_dimensions[column_letter].width = width
+                ws.column_dimensions[column_letter].width = min(width, 50)
 
             wb.save(filepath)
             logger.info(f"✅ Экспорт Excel: {filepath}")
