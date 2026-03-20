@@ -26,6 +26,19 @@ from functools import wraps
 from threading import RLock
 from collections import defaultdict
 
+# ========== НАСТРОЙКИ ДЛЯ СЕТИ ==========
+import aiohttp
+import ssl
+
+# Создаём сессию с увеличенными таймаутами
+connector = aiohttp.TCPConnector(
+    ssl=False,  # Временно отключаем SSL для диагностики
+    ttl_dns_cache=300,
+    force_close=True
+)
+
+timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_connect=10, sock_read=10)
+
 # ========== ПУТИ ==========
 BASE_DIR = Path(__file__).parent
 print(f"📁 Директория: {BASE_DIR}")
