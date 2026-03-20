@@ -2265,7 +2265,8 @@ async def handle_backup_file(message: Message, state: FSMContext):
         # Проверяем скопированный файл
         print(f"🔍 ПРОВЕРКА СКОПИРОВАННОГО ФАЙЛА {db.db_path}:")
         try:
-            copy_conn = sqlite3.connect(str(db.db_path))
+            # Используем uri=True для принудительного открытия
+            copy_conn = sqlite3.connect(f"file:{db.db_path}?mode=ro", uri=True)
             copy_cursor = copy_conn.cursor()
             copy_cursor.execute("SELECT COUNT(*) FROM users")
             copy_users = copy_cursor.fetchone()[0]
@@ -2275,6 +2276,25 @@ async def handle_backup_file(message: Message, state: FSMContext):
             copy_conn.close()
         except Exception as e:
             print(f"   Ошибка проверки: {e}")
+        
+        # Также попробуем открыть с помощью os.open
+        print(f"🔍 ПРОВЕРКА ЧЕРЕЗ os.open:")
+        try:
+            import mmap
+            with open(db.db_path, 'rb') as f:
+                # Проверяем, что файл можно читать
+                f.seek(0, 2)
+                size = f.tell()
+                print(f"   Размер файла: {size}")
+                f.seek(0)
+                # Читаем заголовок таблиц
+                data = f.read(4096)
+                if b'CREATE TABLE users' in data:
+                    print("   ✅ Найдена структура таблицы users")
+                if b'CREATE TABLE user_profiles' in data:
+                    print("   ✅ Найдена структура таблицы user_profiles")
+        except Exception as e:
+            print(f"   Ошибка: {e}")
         
         db._connect()
         
