@@ -697,7 +697,7 @@ class Database:
             traceback.print_exc()
             return None
 
-        def export_to_csv(self, filename: str = None) -> Optional[str]:
+    def export_to_csv(self, filename: str = None) -> Optional[str]:
         """Экспорт в CSV с данными из профиля"""
         if not self.conn:
             self._connect()
@@ -822,7 +822,7 @@ class Database:
             logger.error(f"❌ Ошибка экспорта CSV: {e}")
             return None
 
-        def export_to_excel(self, filename: str = None) -> Optional[str]:
+    def export_to_excel(self, filename: str = None) -> Optional[str]:
         """Экспорт в Excel с данными из профиля"""
         if not self.conn:
             self._connect()
@@ -1003,7 +1003,7 @@ class Database:
             logger.error(f"❌ Ошибка экспорта в Excel: {e}")
             traceback.print_exc()
             return None
-            
+    
     def restore_from_backup(self, backup_path: Path) -> bool:
         try:
             if not backup_path.exists() or backup_path.stat().st_size == 0:
