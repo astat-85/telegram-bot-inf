@@ -1868,7 +1868,6 @@ async def process_input(message: Message, state: FSMContext):
                 profile = profile_db.get_profile(user_id) if profile_db else None
                 
                 if profile:
-                    from keyboards.profile import get_link_account_keyboard
                     await message.answer(
                         f"✅ Аккаунт создан: {value}\n\n"
                         f"🔗 Привязать этот аккаунт к вашему профилю?",
