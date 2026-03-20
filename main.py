@@ -1883,7 +1883,7 @@ async def process_input(message: Message, state: FSMContext):
             await message.answer(f"❌ Ник '{value}' уже используется", reply_markup=get_cancel_kb())
             return
 
-        iif new:
+        if new:
     acc = db.create_or_update_account(user_id, username, value)
     if acc:
         print(f"🔍 ПРОВЕРКА ПРИВЯЗКИ: user_id={user_id}")
