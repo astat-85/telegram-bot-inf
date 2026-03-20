@@ -2228,6 +2228,14 @@ async def handle_backup_file(message: Message, state: FSMContext):
         
         # Копируем временный файл
         shutil.copy2(temp_path, db.db_path)
+
+        # Проверяем размеры
+        temp_size = temp_path.stat().st_size
+        copy_size = db.db_path.stat().st_size
+        print(f"🔍 РАЗМЕРЫ: временный = {temp_size} байт, скопированный = {copy_size} байт")
+        if temp_size != copy_size:
+            print(f"❌ РАЗМЕРЫ НЕ СОВПАДАЮТ! Повторная попытка копирования...")
+            shutil.copy2(temp_path, db.db_path)
         
         # Проверяем временный файл
         print(f"🔍 ПРОВЕРКА ВРЕМЕННОГО ФАЙЛА {temp_path}:")
