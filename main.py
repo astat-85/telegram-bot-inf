@@ -657,8 +657,14 @@ class Database:
                     print("🔄 Выполнен REINDEX")
 
                 self.cursor.execute("SELECT COUNT(*) FROM users")
-                original_count = self.cursor.fetchone()[0]
-                print(f"📊 Записей в БД: {original_count}")
+                users_count = self.cursor.fetchone()[0]
+                print(f"📊 Записей в users: {users_count}")
+                
+                self.cursor.execute("SELECT COUNT(*) FROM user_profiles")
+                profiles_count = self.cursor.fetchone()[0]
+                print(f"📊 Записей в user_profiles: {profiles_count}")
+                
+                original_count = users_count  # для обратной совместимости
 
                 import sqlite3
                 backup_conn = sqlite3.connect(str(filepath))
