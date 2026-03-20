@@ -1869,7 +1869,7 @@ async def process_input(message: Message, state: FSMContext):
 
     field_name = FIELD_FULL_NAMES.get(field, field)
 
-    # ===== ОБРАБОТКА НИКА =====
+        # ===== ОБРАБОТКА НИКА =====
     if field == "nick":
         if not value:
             await message.answer("❌ Ник не может быть пустым", reply_markup=get_cancel_kb())
@@ -1904,18 +1904,10 @@ async def process_input(message: Message, state: FSMContext):
                         reply_markup=get_main_kb(user_id)
                     )
                     await state.clear()
-            return
-        else:
-            print("❌ ПРОФИЛЬ НЕ НАЙДЕН")
-            await message.answer(
-                f"✅ Аккаунт создан: {value}\n\n"
-                f"💡 Совет: заполните профиль командой /profile",
-                reply_markup=get_main_kb(user_id)
-            )
-            await state.clear()
+                    return
             else:
                 await message.answer("❌ Ошибка создания", reply_markup=get_cancel_kb())
-            return
+                return
 
         if account_id:
             acc = db.get_account_by_id(account_id)
@@ -1938,7 +1930,7 @@ async def process_input(message: Message, state: FSMContext):
                     reply_markup=get_main_kb(user_id)
                 )
                 await state.clear()
-            return
+                return
 
     # ===== ОБРАБОТКА ЧИСЛОВЫХ ПОЛЕЙ =====
     if field in ["power", "bm", "dragon", "stands", "research", "pl1", "pl2", "pl3"]:
