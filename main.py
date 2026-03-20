@@ -2203,23 +2203,23 @@ async def handle_backup_file(message: Message, state: FSMContext):
         shutil.copy2(temp_path, db.db_path)
         db._connect()
         
-        if db.check_integrity():
-            accounts = db.get_all_accounts()
-            print(f"🔍 В загруженном бэкапе найдено аккаунтов: {len(accounts)}")
-            for acc in accounts:
-                print(f"   - {acc.get('game_nickname')} (user_id={acc.get('user_id')})")
-            if accounts:
-                await status_msg.edit_text(
-                    f"✅ База данных восстановлена!\n\n"
-                    f"📊 Загружено {len(accounts)} аккаунтов\n"
-                    f"💾 Предыдущая БД сохранена как: {current_backup.name}"
-                )
-            else:
-                if current_backup.exists():
-                    db.close()
-                    shutil.copy2(current_backup, db.db_path)
-                    db._connect()
-                await status_msg.edit_text("❌ В загруженном файле нет данных. Восстановлена предыдущая БД.")
+    if db.check_integrity():
+        accounts = db.get_all_accounts()
+        print(f"🔍 В загруженном бэкапе найдено аккаунтов: {len(accounts)}")
+        for acc in accounts:
+            print(f"   - {acc.get('game_nickname')} (user_id={acc.get('user_id')})")
+        if accounts:
+            await status_msg.edit_text(
+                f"✅ База данных восстановлена!\n\n"
+                f"📊 Загружено {len(accounts)} аккаунтов\n"
+                f"💾 Предыдущая БД сохранена как: {current_backup.name}"
+            )
+        else:
+            if current_backup.exists():
+                db.close()
+                shutil.copy2(current_backup, db.db_path)
+                db._connect()
+            await status_msg.edit_text("❌ В загруженном файле нет данных. Восстановлена предыдущая БД.")
         else:
             if current_backup.exists():
                 db.close()
