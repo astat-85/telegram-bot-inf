@@ -2202,34 +2202,41 @@ async def handle_backup_file(message: Message, state: FSMContext):
         db.close()
         shutil.copy2(temp_path, db.db_path)
         db._connect()
-    
-    if db.check_integrity():
-        # Получаем количество аккаунтов
-        db._execute("SELECT COUNT(*) FROM users")
-        users_count = db.cursor.fetchone()[0]
         
-        # Получаем количество профилей
-        db._execute("SELECT COUNT(*) FROM user_profiles")
-        profiles_count = db.cursor.fetchone()[0]
-        
-        print(f"🔍 Восстановленная БД: users={users_count}, profiles={profiles_count}")
-        
-        if users_count > 0 or profiles_count > 0:
-            await status_msg.edit_text(
-                f"✅ База данных восстановлена!\n\n"
-                f"📊 Аккаунтов: {users_count}\n"
-                f"👤 Профилей: {profiles_count}\n"
-                f"💾 Предыдущая БД сохранена как: {current_backup.name}"
-            )
+        if db.check_integrity():
+            # Получаем количество аккаунтов
+            db._execute("SELECT COUNT(*) FROM users")
+            users_count = db.cursor.fetchone()[0]
+            
+            # Получаем количество профилей
+            db._execute("SELECT COUNT(*) FROM user_profiles")
+            profiles_count = db.cursor.fetchone()[0]
+            
+            print(f"🔍 Восстановленная БД: users={users_count}, profiles={profiles_count}")
+            
+            if users_count > 0 or profiles_count > 0:
+                await status_msg.edit_text(
+                    f"✅ База данных восстановлена!\n\n"
+                    f"📊 Аккаунтов: {users_count}\n"
+                    f"👤 Профилей: {profiles_count}\n"
+                    f"💾 Предыдущая БД сохранена как: {current_backup.name}"
+                )
+            else:
+                if current_backup.exists():
+                    db.close()
+                    shutil.copy2(current_backup, db.db_path)
+                    db._connect()
+                await status_msg.edit_text(
+                    "❌ В загруженном файле нет данных (пустые таблицы).\n"
+                    "Восстановлена предыдущая БД."
+                )
         else:
             if current_backup.exists():
                 db.close()
                 shutil.copy2(current_backup, db.db_path)
                 db._connect()
-            await status_msg.edit_text(
-                "❌ В загруженном файле нет данных (пустые таблицы).\n"
-                "Восстановлена предыдущая БД."
-            )
+            await status_msg.edit_text("❌ Загруженный файл поврежден. Восстановлена предыдущая БД.")
+        
     except Exception as e:
         logger.error(f"Ошибка восстановления: {e}")
         await status_msg.edit_text(f"❌ Ошибка: {e}")
