@@ -2226,8 +2226,12 @@ async def handle_backup_file(message: Message, state: FSMContext):
         if db.db_path.exists():
             os.remove(db.db_path)
         
-                # Копируем временный файл
-        shutil.copy2(temp_path, db.db_path)
+        # Копируем временный файл через чтение/запись байтов
+        with open(temp_path, 'rb') as src:
+            with open(db.db_path, 'wb') as dst:
+                dst.write(src.read())
+                dst.flush()
+                os.fsync(dst.fileno())
         
         # Проверяем размеры
         temp_size = temp_path.stat().st_size
@@ -2245,6 +2249,20 @@ async def handle_backup_file(message: Message, state: FSMContext):
             temp_profiles = test_cursor.fetchone()[0]
             print(f"   users = {temp_users}, profiles = {temp_profiles}")
             test_conn.close()
+        except Exception as e:
+            print(f"   Ошибка проверки: {e}")
+        
+        # Проверяем скопированный файл (ДО _connect)
+        print(f"🔍 ПРОВЕРКА СКОПИРОВАННОГО ФАЙЛА {db.db_path}:")
+        try:
+            copy_conn = sqlite3.connect(str(db.db_path))
+            copy_cursor = copy_conn.cursor()
+            copy_cursor.execute("SELECT COUNT(*) FROM users")
+            copy_users = copy_cursor.fetchone()[0]
+            copy_cursor.execute("SELECT COUNT(*) FROM user_profiles")
+            copy_profiles = copy_cursor.fetchone()[0]
+            print(f"   users = {copy_users}, profiles = {copy_profiles}")
+            copy_conn.close()
         except Exception as e:
             print(f"   Ошибка проверки: {e}")
         
