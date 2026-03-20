@@ -2205,6 +2205,9 @@ async def handle_backup_file(message: Message, state: FSMContext):
         
         if db.check_integrity():
             accounts = db.get_all_accounts()
+            print(f"🔍 В загруженном бэкапе найдено аккаунтов: {len(accounts)}")
+            for acc in accounts:
+                print(f"   - {acc.get('game_nickname')} (user_id={acc.get('user_id')})")
             if accounts:
                 await status_msg.edit_text(
                     f"✅ База данных восстановлена!\n\n"
