@@ -2229,10 +2229,24 @@ async def handle_backup_file(message: Message, state: FSMContext):
         # Копируем временный файл
         shutil.copy2(temp_path, db.db_path)
         
+        # ПРОВЕРКА: выводим информацию о файле
+        print(f"🔍 ПУТЬ К БД: {db.db_path}")
+        print(f"🔍 АБСОЛЮТНЫЙ ПУТЬ: {os.path.abspath(db.db_path)}")
+        print(f"🔍 ФАЙЛ СУЩЕСТВУЕТ: {os.path.exists(db.db_path)}")
+        print(f"🔍 ФАЙЛ ДОСТУПЕН ДЛЯ ЧТЕНИЯ: {os.access(db.db_path, os.R_OK)}")
+        
         # Проверяем размеры
         temp_size = temp_path.stat().st_size
         copy_size = db.db_path.stat().st_size
         print(f"🔍 РАЗМЕРЫ: временный = {temp_size} байт, скопированный = {copy_size} байт")
+        
+        # Читаем первые байты файла
+        try:
+            with open(db.db_path, 'rb') as f:
+                header = f.read(50)
+                print(f"🔍 ПЕРВЫЕ 50 БАЙТ: {header}")
+        except Exception as e:
+            print(f"   Ошибка чтения: {e}")
         
         # Проверяем временный файл
         print(f"🔍 ПРОВЕРКА ВРЕМЕННОГО ФАЙЛА {temp_path}:")
@@ -2309,7 +2323,6 @@ async def handle_backup_file(message: Message, state: FSMContext):
         except:
             pass
         await state.clear()
-
 # ========== ОБЩИЙ ХЕНДЛЕР ==========
 @router.message(F.chat.type == "private")
 async def any_message(message: Message, state: FSMContext):
