@@ -1239,6 +1239,45 @@ def format_buff(value: str) -> str:
     except:
         return '—'
 
+def format_timezone_offset(tzid: str) -> str:
+    """
+    Преобразует название часового пояса в смещение относительно Москвы
+    """
+    timezone_offsets = {
+        'Europe/Kaliningrad': 'MSK-1 (UTC+2)',
+        'Europe/Moscow': 'MSK (UTC+3)',
+        'Europe/Volgograd': 'MSK (UTC+3)',
+        'Europe/Kirov': 'MSK (UTC+3)',
+        'Europe/Astrakhan': 'MSK+1 (UTC+4)',
+        'Europe/Samara': 'MSK+1 (UTC+4)',
+        'Europe/Saratov': 'MSK+1 (UTC+4)',
+        'Europe/Ulyanovsk': 'MSK+1 (UTC+4)',
+        'Asia/Yekaterinburg': 'MSK+2 (UTC+5)',
+        'Asia/Omsk': 'MSK+3 (UTC+6)',
+        'Asia/Novosibirsk': 'MSK+4 (UTC+7)',
+        'Asia/Barnaul': 'MSK+4 (UTC+7)',
+        'Asia/Tomsk': 'MSK+4 (UTC+7)',
+        'Asia/Novokuznetsk': 'MSK+4 (UTC+7)',
+        'Asia/Krasnoyarsk': 'MSK+4 (UTC+7)',
+        'Asia/Irkutsk': 'MSK+5 (UTC+8)',
+        'Asia/Chita': 'MSK+6 (UTC+9)',
+        'Asia/Yakutsk': 'MSK+6 (UTC+9)',
+        'Asia/Khandyga': 'MSK+6 (UTC+9)',
+        'Asia/Vladivostok': 'MSK+7 (UTC+10)',
+        'Asia/Ust-Nera': 'MSK+7 (UTC+10)',
+        'Asia/Magadan': 'MSK+8 (UTC+11)',
+        'Asia/Sakhalin': 'MSK+8 (UTC+11)',
+        'Asia/Srednekolymsk': 'MSK+8 (UTC+11)',
+        'Asia/Kamchatka': 'MSK+9 (UTC+12)',
+        'Asia/Anadyr': 'MSK+9 (UTC+12)'
+    }
+    
+    if tzid in timezone_offsets:
+        # Возвращаем только смещение, например "+0(+4)"
+        offset = timezone_offsets[tzid].split(' ')[0]
+        return offset
+    return 'MSK'
+
 def format_accounts_table(accounts: List[Dict], start: int = 0) -> str:
     text = "<code>\n"
     for i, acc in enumerate(accounts, start + 1):
@@ -1248,8 +1287,34 @@ def format_accounts_table(accounts: List[Dict], start: int = 0) -> str:
         nick = html.escape(nick)
         if len(nick) > 20:
             nick = nick[:17] + '...'
-
-        text += f"{i:2d}. {nick}\n"
+        
+        # Получаем данные из профиля
+        first_name = acc.get('first_name', '')
+        last_name = acc.get('last_name', '')
+        full_name = f"{last_name} {first_name}".strip() if last_name or first_name else ''
+        
+        # Часовой пояс
+        timezone = acc.get('timezone', 'Europe/Moscow')
+        timezone_display = format_timezone_offset(timezone) if timezone else ''
+        
+        # Возраст
+        age = ''
+        birth_year = acc.get('birth_year')
+        if birth_year:
+            age = f"{datetime.now().year - birth_year} год"
+        
+        # Формируем строку с данными профиля
+        profile_info = []
+        if full_name:
+            profile_info.append(full_name)
+        if timezone_display:
+            profile_info.append(timezone_display)
+        if age:
+            profile_info.append(age)
+        
+        profile_str = f" ({', '.join(profile_info)})" if profile_info else ""
+        
+        text += f"{i:2d}. {nick}{profile_str}\n"
         text += f"  ⚡️{format_power(acc.get('power', '—'))} "
         text += f"⚔️{format_bm(acc.get('bm', '—'))} "
         text += f"📍1-{format_pl(acc.get('pl1', '—'))} "
