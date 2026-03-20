@@ -1861,27 +1861,31 @@ async def process_input(message: Message, state: FSMContext):
             await message.answer(f"❌ Ник '{value}' уже используется", reply_markup=get_cancel_kb())
             return
 
-        if new:
-            acc = db.create_or_update_account(user_id, username, value)
-            if acc:
-                # Спрашиваем о привязке к профилю
-                profile = profile_db.get_profile(user_id) if profile_db else None
-                
-                if profile:
-                    await message.answer(
-                        f"✅ Аккаунт создан: {value}\n\n"
-                        f"🔗 Привязать этот аккаунт к вашему профилю?",
-                        reply_markup=get_link_account_keyboard()
-                    )
-                    await state.update_data(pending_account_id=acc.get('id'), pending_account_nick=value)
-                    return
-                else:
-                    await message.answer(
-                        f"✅ Аккаунт создан: {value}\n\n"
-                        f"💡 Совет: заполните профиль командой /profile",
-                        reply_markup=get_main_kb(user_id)
-                    )
-                    await state.clear()
+        iif new:
+    acc = db.create_or_update_account(user_id, username, value)
+    if acc:
+        print(f"🔍 ПРОВЕРКА ПРИВЯЗКИ: user_id={user_id}")
+        # Спрашиваем о привязке к профилю
+        profile = profile_db.get_profile(user_id) if profile_db else None
+        print(f"🔍 profile_db.get_profile({user_id}) = {profile}")
+        
+        if profile:
+            print("✅ ПРОФИЛЬ НАЙДЕН, ПОКАЗЫВАЕМ ВОПРОС О ПРИВЯЗКЕ")
+            await message.answer(
+                f"✅ Аккаунт создан: {value}\n\n"
+                f"🔗 Привязать этот аккаунт к вашему профилю?",
+                reply_markup=get_link_account_keyboard()
+            )
+            await state.update_data(pending_account_id=acc.get('id'), pending_account_nick=value)
+            return
+        else:
+            print("❌ ПРОФИЛЬ НЕ НАЙДЕН")
+            await message.answer(
+                f"✅ Аккаунт создан: {value}\n\n"
+                f"💡 Совет: заполните профиль командой /profile",
+                reply_markup=get_main_kb(user_id)
+            )
+            await state.clear()
             else:
                 await message.answer("❌ Ошибка создания", reply_markup=get_cancel_kb())
             return
