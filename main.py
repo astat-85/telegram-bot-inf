@@ -4150,13 +4150,28 @@ async def check_database_on_startup():
     # Фильтруем: показываем только backup_*.db для уведомления о наличии бэкапов
     backup_files = [f for f in all_db_files if f.name.startswith("backup_")]
     has_backups = len(backup_files) > 0
-    print(f"📁 Найдено бэкапов: {len(backup_files)}")
     
     print(f"\n📊 ПРОВЕРКА БД:")
     print(f"   Файл существует: {db_exists}")
     print(f"   Размер: {db_size} байт")
     print(f"   Есть данные: {has_data}")
-    print(f"   Бэкапов найдено: {len(backups)}")
+    print(f"   Бэкапов найдено: {len(backup_files)}")
+    
+    if not has_data:
+        print("⚠️ БД пустая или отсутствует!")
+        
+        if ADMIN_IDS:
+            print("👑 Спрашиваю админов...")
+            await ask_admin_what_to_do()
+            print("⏳ Ожидание выбора админа...")
+        else:
+            print("⚠️ Админы не настроены. Создаю новую пустую БД...")
+            db._connect()
+            db._create_tables()
+    else:
+        print(f"✅ БД в порядке. Данных: {len(db.get_all_accounts())} аккаунтов")
+    
+    print("-" * 50)
     
     if not has_data:
         print("⚠️ БД пустая или отсутствует!")
