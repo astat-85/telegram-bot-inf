@@ -660,4 +660,48 @@ class ProfileDB:
                 return [dict(row) for row in self.db.cursor.fetchall()]
             except Exception as e:
                 print(f"❌ Ошибка получения всех профилей: {e}")
+
+    # ========== ИНИЦИАЛИЗАЦИЯ ДЕФОЛТНЫХ ДАННЫХ ==========
+    def init_default_data(self):
+        """Инициализирует дефолтные шаблоны и настройки"""
+        with self.lock:
+            try:
+                # Проверяем есть ли шаблоны
+                self.db._execute("SELECT COUNT(*) FROM birthday_templates")
+                count = self.db.cursor.fetchone()[0]
+                
+                if count == 0:
+                    # Добавляем дефолтные шаблоны
+                    default_templates = [
+                        "🎉 {name}, с днём рождения! Желаем здоровья, счастья и побед! 🏆",
+                        "🥳 {name}, поздравляем! Пусть всё получается, а удача всегда будет на твоей стороне! 🍀",
+                        "🎂 {name}, с днём рождения! Новых достижений и ярких побед! ⚡️",
+                        "🎈 {name}, желаем отличного настроения, крепкого здоровья и успехов во всех начинаниях! 💪",
+                        "🌟 {name}, с днём рождения! Пусть сбудутся все мечты и планы! 🚀"
+                    ]
+                    
+                    for template in default_templates:
+                        self.db._execute(
+                            "INSERT INTO birthday_templates (template_text, is_default) VALUES (?, 1)",
+                            (template,)
+                        )
+                    self.db.conn.commit()
+                    print("✅ Добавлены дефолтные шаблоны поздравлений")
+                
+                # Проверяем есть ли настройки
+                self.db._execute("SELECT COUNT(*) FROM birthday_settings")
+                count = self.db.cursor.fetchone()[0]
+                
+                if count == 0:
+                    # Добавляем дефолтные настройки
+                    self.db._execute("""
+                        INSERT INTO birthday_settings 
+                        (id, responsible_user_id, group_chat_id, notification_3day, notification_1day, notification_day, use_gpt)
+                        VALUES (1, NULL, NULL, 1, 1, 1, 0)
+                    """)
+                    self.db.conn.commit()
+                    print("✅ Добавлены дефолтные настройки уведомлений")
+                    
+            except Exception as e:
+                print(f"⚠️ Ошибка инициализации дефолтных данных: {e}")                
                 return []
