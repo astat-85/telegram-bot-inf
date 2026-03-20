@@ -2226,51 +2226,29 @@ async def handle_backup_file(message: Message, state: FSMContext):
         if db.db_path.exists():
             os.remove(db.db_path)
         
-        # Копируем с новым именем
-        import shutil
+        # Копируем временный файл
         shutil.copy2(temp_path, db.db_path)
         
-        # Проверяем, что файл существует и доступен
-        print(f"🔍 ФАЙЛ ПОСЛЕ КОПИРОВАНИЯ СУЩЕСТВУЕТ: {db.db_path.exists()}")
-        print(f"🔍 РАЗМЕР: {db.db_path.stat().st_size} байт")
+        # Проверяем размеры
+        temp_size = temp_path.stat().st_size
+        copy_size = db.db_path.stat().st_size
+        print(f"🔍 РАЗМЕРЫ: временный = {temp_size} байт, скопированный = {copy_size} байт")
         
-        # Проверяем содержимое через os.open
+        # Проверяем временный файл
+        print(f"🔍 ПРОВЕРКА ВРЕМЕННОГО ФАЙЛА {temp_path}:")
         try:
-            with open(db.db_path, 'rb') as f:
-                header = f.read(16)
-                print(f"🔍 ЗАГОЛОВОК ФАЙЛА: {header[:10]}")
+            test_conn = sqlite3.connect(str(temp_path))
+            test_cursor = test_conn.cursor()
+            test_cursor.execute("SELECT COUNT(*) FROM users")
+            temp_users = test_cursor.fetchone()[0]
+            test_cursor.execute("SELECT COUNT(*) FROM user_profiles")
+            temp_profiles = test_cursor.fetchone()[0]
+            print(f"   users = {temp_users}, profiles = {temp_profiles}")
+            test_conn.close()
         except Exception as e:
-            print(f"   Ошибка чтения: {e}")
+            print(f"   Ошибка проверки: {e}")
         
         # Проверяем скопированный файл
-        print(f"🔍 ПРОВЕРКА СКОПИРОВАННОГО ФАЙЛА {db.db_path}:")
-        try:
-            copy_conn = sqlite3.connect(str(db.db_path))
-            copy_cursor = copy_conn.cursor()
-            copy_cursor.execute("SELECT COUNT(*) FROM users")
-            copy_users = copy_cursor.fetchone()[0]
-            copy_cursor.execute("SELECT COUNT(*) FROM user_profiles")
-            copy_profiles = copy_cursor.fetchone()[0]
-            print(f"   users = {copy_users}, profiles = {copy_profiles}")
-            copy_conn.close()
-        except Exception as e:
-            print(f"   Ошибка: {e}")
-        
-        # Проверяем скопированный файл
-        print(f"🔍 ПРОВЕРКА СКОПИРОВАННОГО ФАЙЛА {db.db_path}:")
-        try:
-            copy_conn = sqlite3.connect(str(db.db_path))
-            copy_cursor = copy_conn.cursor()
-            copy_cursor.execute("SELECT COUNT(*) FROM users")
-            copy_users = copy_cursor.fetchone()[0]
-            copy_cursor.execute("SELECT COUNT(*) FROM user_profiles")
-            copy_profiles = copy_cursor.fetchone()[0]
-            print(f"   users = {copy_users}, profiles = {copy_profiles}")
-            copy_conn.close()
-        except Exception as e:
-            print(f"   Ошибка: {e}"
-        
-        # Проверяем скопированный файл (ДО _connect)
         print(f"🔍 ПРОВЕРКА СКОПИРОВАННОГО ФАЙЛА {db.db_path}:")
         try:
             copy_conn = sqlite3.connect(str(db.db_path))
