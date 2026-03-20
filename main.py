@@ -2220,13 +2220,7 @@ async def handle_backup_file(message: Message, state: FSMContext):
                 shutil.copy2(current_backup, db.db_path)
                 db._connect()
             await status_msg.edit_text("❌ В загруженном файле нет данных. Восстановлена предыдущая БД.")
-        else:
-            if current_backup.exists():
-                db.close()
-                shutil.copy2(current_backup, db.db_path)
-                db._connect()
-            await status_msg.edit_text("❌ Загруженный файл поврежден. Восстановлена предыдущая БД.")
-        
+      
     except Exception as e:
         logger.error(f"Ошибка восстановления: {e}")
         await status_msg.edit_text(f"❌ Ошибка: {e}")
