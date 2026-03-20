@@ -1194,16 +1194,31 @@ def get_account_actions_kb(account_id: int) -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="⬅️ Назад", callback_data="my_accounts")]
     ])
 
-def get_edit_fields_kb(account_id: int) -> InlineKeyboardMarkup:
-    buttons = []
-    for key, name in FIELD_FULL_NAMES.items():
-        if key != "nick":
-            buttons.append([InlineKeyboardButton(
-                text=name,
-                callback_data=f"field_{account_id}_{key}"
-            )])
-    buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data=f"select_{account_id}")])
-    return InlineKeyboardMarkup(inline_keyboard=buttons)
+@router.callback_query(F.data.startswith("edit_"))
+async def edit_account(callback: CallbackQuery):
+    print(f"🔴🔴🔴 edit_account ВЫЗВАНА! callback.data={callback.data}")
+    try:
+        account_id = int(callback.data.split("_")[1])
+        print(f"📦 account_id={account_id}")
+    except (ValueError, IndexError):
+        await callback.answer("❌ Неверный ID аккаунта", show_alert=True)
+        return
+        
+    account = db.get_account_by_id(account_id)
+    print(f"📋 account={account}")
+
+    if not account:
+        await callback.answer("❌ Аккаунт не найден", show_alert=True)
+        return
+
+    kb = get_edit_fields_kb(account_id)
+    print(f"🔘 клавиатура={kb}")
+
+    await callback.message.edit_text(
+        f"✏️ <b>Редактирование</b> {account['game_nickname']}\n\nВыберите поле:",
+        reply_markup=kb
+    )
+    await callback.answer()
 
 def get_send_kb(accounts: List[Dict]) -> InlineKeyboardMarkup:
     buttons = []
