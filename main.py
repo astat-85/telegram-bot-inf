@@ -3129,6 +3129,38 @@ async def db_restore_unified_handler(callback: CallbackQuery, state: FSMContext)
         )
         await callback.answer()
         return
+        
+    if callback.data.startswith("db_restore_backup_"):
+        backup_name = callback.data.replace("db_restore_backup_", "")
+        print(f"📦 ВЫБРАН ФАЙЛ (backup): {backup_name}")
+        
+        backup_path = BACKUP_DIR / backup_name if (BACKUP_DIR / backup_name).exists() else BASE_DIR / backup_name
+        
+        if not backup_path.exists():
+            await callback.message.edit_text(
+                "❌ Файл бэкапа не найден",
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="⬅️ Назад", callback_data="db_restore_menu")]
+                ])
+            )
+            await callback.answer()
+            return
+        
+        await callback.message.edit_text(
+            f"⚠️ <b>Подтверждение восстановления</b>\n\n"
+            f"Файл: {backup_name}\n"
+            f"Размер: {(backup_path.stat().st_size / 1024):.1f} KB\n\n"
+            f"<b>ВНИМАНИЕ!</b> Текущая база данных будет полностью заменена!\n\n"
+            f"Вы уверены?",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="✅ Да, восстановить", callback_data=f"db_restore_confirm_{backup_name}"),
+                    InlineKeyboardButton(text="❌ Нет, отмена", callback_data="db_restore_menu")
+                ]
+            ])
+        )
+        await callback.answer()
+        return
     
     if callback.data.startswith("db_restore_confirm_"):
         backup_name = callback.data.replace("db_restore_confirm_", "")
