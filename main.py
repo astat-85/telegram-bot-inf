@@ -3046,7 +3046,6 @@ async def db_restore_unified_handler(callback: CallbackQuery, state: FSMContext)
         return
     
     if callback.data.startswith("db_restore_file_") or callback.data.startswith("db_restore_before_restore_") or callback.data.startswith("db_restore_backup_"):
-        # Определяем имя файла
         if callback.data.startswith("db_restore_file_"):
             backup_name = callback.data.replace("db_restore_file_", "")
         elif callback.data.startswith("db_restore_before_restore_"):
@@ -3056,7 +3055,14 @@ async def db_restore_unified_handler(callback: CallbackQuery, state: FSMContext)
         
         print(f"📦 ВЫБРАН ФАЙЛ: {backup_name}")
         
-        backup_path = BACKUP_DIR / backup_name if (BACKUP_DIR / backup_name).exists() else BASE_DIR / backup_name
+        backup_path = BACKUP_DIR / backup_name
+        if not backup_path.exists():
+            backup_path = BACKUP_DIR / f"backup_{backup_name}"
+        if not backup_path.exists():
+            backup_path = BACKUP_DIR / f"before_restore_{backup_name}"
+        
+        print(f"🔍 ПУТЬ: {backup_path}")
+        print(f"🔍 СУЩЕСТВУЕТ: {backup_path.exists()}")
         
         if not backup_path.exists():
             await callback.message.edit_text(
@@ -3088,7 +3094,12 @@ async def db_restore_unified_handler(callback: CallbackQuery, state: FSMContext)
         backup_name = callback.data.replace("db_restore_confirm_", "")
         print(f"✅ ПОДТВЕРЖДЕНИЕ ВОССТАНОВЛЕНИЯ: {backup_name}")
         
-        backup_path = BACKUP_DIR / backup_name if (BACKUP_DIR / backup_name).exists() else BASE_DIR / backup_name
+        backup_path = BACKUP_DIR / backup_name
+        if not backup_path.exists():
+            backup_path = BACKUP_DIR / f"backup_{backup_name}"
+        if not backup_path.exists():
+            backup_path = BACKUP_DIR / f"before_restore_{backup_name}"
+        
         await callback.message.edit_text("🔄 Восстановление...")
         
         try:
