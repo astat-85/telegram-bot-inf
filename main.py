@@ -2098,11 +2098,6 @@ async def process_input(message: Message, state: FSMContext):
 
     await state.clear()
 
-# ========== ОБРАБОТЧИК ПРИВЯЗКИ АККАУНТА (закомментирован, не используется) ==========
-# @router.callback_query(F.data.in_(["link_yes", "link_no"]))
-# async def handle_account_link_choice(callback: CallbackQuery, state: FSMContext):
-#     ...
-
 # ========== ОБРАБОТКА ФАЙЛОВ ==========
 @router.message(EditState.waiting_for_backup, F.document)
 async def handle_backup_file(message: Message, state: FSMContext):
