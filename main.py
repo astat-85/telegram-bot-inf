@@ -92,7 +92,7 @@ BACKUP_DIR = DATA_DIR / "backups"
 LOGS_DIR = DATA_DIR / "logs"
 
 for dir_path in [EXPORT_DIR, BACKUP_DIR, LOGS_DIR]:
-    dir_path.mkdir(exist_ok=True, parents=True
+    dir_path.mkdir(exist_ok=True, parents=True)
 
 # ========== ЛОГИРОВАНИЕ ==========
 log_handler = logging.handlers.RotatingFileHandler(
