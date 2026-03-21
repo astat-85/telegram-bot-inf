@@ -43,6 +43,11 @@ timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_connect=10, sock_read
 BASE_DIR = Path(__file__).parent
 print(f"📁 Директория: {BASE_DIR}")
 
+# ========== ПАПКА ДЛЯ ДАННЫХ ==========
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(exist_ok=True, parents=True)
+print(f"📁 Папка данных: {DATA_DIR}")
+
 # ========== ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ ==========
 BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 ADMIN_IDS_STR = os.getenv("ADMIN_IDS", "").strip()
@@ -87,7 +92,7 @@ BACKUP_DIR = DATA_DIR / "backups"
 LOGS_DIR = DATA_DIR / "logs"
 
 for dir_path in [EXPORT_DIR, BACKUP_DIR, LOGS_DIR]:
-    dir_path.mkdir(exist_ok=True, parents=True)
+    dir_path.mkdir(exist_ok=True, parents=True
 
 # ========== ЛОГИРОВАНИЕ ==========
 log_handler = logging.handlers.RotatingFileHandler(
