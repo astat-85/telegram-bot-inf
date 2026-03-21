@@ -48,7 +48,7 @@ BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
 ADMIN_IDS_STR = os.getenv("ADMIN_IDS", "").strip()
 TARGET_CHAT_ID = os.getenv("TARGET_CHAT_ID", "").strip()
 TARGET_TOPIC_ID = os.getenv("TARGET_TOPIC_ID", "").strip()
-DB_NAME = os.getenv("DB_NAME", str(BASE_DIR / "users_data.db"))
+DB_NAME = os.getenv("DB_NAME", str(DATA_DIR / "users_data.db"))
 
 # ========== ВАЛИДАЦИЯ ТОКЕНА ==========
 if not BOT_TOKEN or not re.match(r'^\d+:[\w-]+$', BOT_TOKEN):
@@ -77,9 +77,14 @@ if TARGET_TOPIC_ID and TARGET_TOPIC_ID.strip() not in ("", "0", "None", "none", 
         print(f"⚠️ Неверный TARGET_TOPIC_ID: '{TARGET_TOPIC_ID}'")
 
 # ========== ДИРЕКТОРИИ ==========
-EXPORT_DIR = BASE_DIR / "exports"
-BACKUP_DIR = BASE_DIR / "backups"
-LOGS_DIR = BASE_DIR / "logs"
+DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(exist_ok=True, parents=True)
+print(f"📁 Папка данных: {DATA_DIR}")
+
+# ========== ДИРЕКТОРИИ (ВСЕ ВНУТРИ DATA) ==========
+EXPORT_DIR = DATA_DIR / "exports"
+BACKUP_DIR = DATA_DIR / "backups"
+LOGS_DIR = DATA_DIR / "logs"
 
 for dir_path in [EXPORT_DIR, BACKUP_DIR, LOGS_DIR]:
     dir_path.mkdir(exist_ok=True, parents=True)
@@ -2992,9 +2997,10 @@ async def db_restore_unified_handler(callback: CallbackQuery, state: FSMContext)
     
     if callback.data == "db_restore_menu":
         print("📋 МЕНЮ ВЫБОРА БЭКАПА")
-        backups = sorted(BACKUP_DIR.glob("backup_*.db"), key=os.path.getmtime, reverse=True)
-        root_backups = sorted(BASE_DIR.glob("backup_*.db"), key=os.path.getmtime, reverse=True)
-        all_backups = backups + root_backups
+        all_backups = sorted(BACKUP_DIR.glob("*.db"), key=os.path.getmtime, reverse=True)
+        print(f"📁 Найдено файлов в backups: {len(all_backups)}")
+        for b in all_backups:
+            print(f"   - {b.name} ({b.stat().st_size} bytes)")
         
         if not all_backups:
             await callback.message.edit_text(
@@ -3019,7 +3025,7 @@ async def db_restore_unified_handler(callback: CallbackQuery, state: FSMContext)
             buttons.append([
                 InlineKeyboardButton(
                     text=f"📅 {date_str} ({(backup.stat().st_size / 1024):.1f} KB) {location}",
-                    callback_data=f"db_restore_file_{backup.name}"
+                    callback_data=f"db_restore_{backup.name}"
                 )
             ])
         
@@ -3034,105 +3040,16 @@ async def db_restore_unified_handler(callback: CallbackQuery, state: FSMContext)
         await callback.answer()
         return
     
-    if callback.data.startswith("db_restore_file_"):
-        backup_name = callback.data.replace("db_restore_file_", "")
+    if callback.data.startswith("db_restore_file_") or callback.data.startswith("db_restore_before_restore_") or callback.data.startswith("db_restore_backup_"):
+        # Определяем имя файла
+        if callback.data.startswith("db_restore_file_"):
+            backup_name = callback.data.replace("db_restore_file_", "")
+        elif callback.data.startswith("db_restore_before_restore_"):
+            backup_name = callback.data.replace("db_restore_before_restore_", "")
+        else:
+            backup_name = callback.data.replace("db_restore_backup_", "")
+        
         print(f"📦 ВЫБРАН ФАЙЛ: {backup_name}")
-        
-        backup_path = BACKUP_DIR / backup_name if (BACKUP_DIR / backup_name).exists() else BASE_DIR / backup_name
-        
-        if not backup_path.exists():
-            await callback.message.edit_text(
-                "❌ Файл бэкапа не найден",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="⬅️ Назад", callback_data="db_restore_menu")]
-                ])
-            )
-            await callback.answer()
-            return
-        
-        await callback.message.edit_text(
-            f"⚠️ <b>Подтверждение восстановления</b>\n\n"
-            f"Файл: {backup_name}\n"
-            f"Размер: {(backup_path.stat().st_size / 1024):.1f} KB\n\n"
-            f"<b>ВНИМАНИЕ!</b> Текущая база данных будет полностью заменена!\n\n"
-            f"Вы уверены?",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [
-                    InlineKeyboardButton(text="✅ Да, восстановить", callback_data=f"db_restore_confirm_{backup_name}"),
-                    InlineKeyboardButton(text="❌ Нет, отмена", callback_data="db_restore_menu")
-                ]
-            ])
-        )
-        await callback.answer()
-        return
-    
-    if callback.data.startswith("db_restore_before_restore_"):
-        backup_name = callback.data.replace("db_restore_before_restore_", "")
-        print(f"📦 ВЫБРАН ФАЙЛ (before_restore): {backup_name}")
-        
-        backup_path = BACKUP_DIR / backup_name if (BACKUP_DIR / backup_name).exists() else BASE_DIR / backup_name
-        
-        if not backup_path.exists():
-            await callback.message.edit_text(
-                "❌ Файл бэкапа не найден",
-                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="⬅️ Назад", callback_data="db_restore_menu")]
-                ])
-            )
-            await callback.answer()
-            return
-        
-        await callback.message.edit_text(
-            f"⚠️ <b>Подтверждение восстановления</b>\n\n"
-            f"Файл: {backup_name}\n"
-            f"Размер: {(backup_path.stat().st_size / 1024):.1f} KB\n\n"
-            f"<b>ВНИМАНИЕ!</b> Текущая база данных будет полностью заменена!\n\n"
-            f"Вы уверены?",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [
-                    InlineKeyboardButton(text="✅ Да, восстановить", callback_data=f"db_restore_confirm_{backup_name}"),
-                    InlineKeyboardButton(text="❌ Нет, отмена", callback_data="db_restore_menu")
-                ]
-            ])
-        )
-        await callback.answer()
-        return
-        
-        await callback.message.edit_text(
-            f"⚠️ <b>Подтверждение восстановления</b>\n\n"
-            f"Файл: {backup_name}\n"
-            f"Размер: {(backup_path.stat().st_size / 1024):.1f} KB\n\n"
-            f"<b>ВНИМАНИЕ!</b> Текущая база данных будет полностью заменена!\n\n"
-            f"Вы уверены?",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [
-                    InlineKeyboardButton(text="✅ Да, восстановить", callback_data=f"db_restore_confirm_{backup_name}"),
-                    InlineKeyboardButton(text="❌ Нет, отмена", callback_data="db_restore_menu")
-                ]
-            ])
-        )
-        await callback.answer()
-        return
-        
-        await callback.message.edit_text(
-            f"⚠️ <b>Подтверждение восстановления</b>\n\n"
-            f"Файл: {backup_name}\n"
-            f"Размер: {(backup_path.stat().st_size / 1024):.1f} KB\n\n"
-            f"<b>ВНИМАНИЕ!</b> Текущая база данных будет полностью заменена!\n\n"
-            f"Вы уверены?",
-            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                [
-                    InlineKeyboardButton(text="✅ Да, восстановить", callback_data=f"db_restore_confirm_{backup_name}"),
-                    InlineKeyboardButton(text="❌ Нет, отмена", callback_data="db_restore_menu")
-                ]
-            ])
-        )
-        await callback.answer()
-        return
-        
-    if callback.data.startswith("db_restore_backup_"):
-        backup_name = callback.data.replace("db_restore_backup_", "")
-        print(f"📦 ВЫБРАН ФАЙЛ (backup): {backup_name}")
         
         backup_path = BACKUP_DIR / backup_name if (BACKUP_DIR / backup_name).exists() else BASE_DIR / backup_name
         
@@ -3178,7 +3095,6 @@ async def db_restore_unified_handler(callback: CallbackQuery, state: FSMContext)
             db._connect()
             
             if db.check_integrity():
-                # Получаем количество аккаунтов и профилей
                 db._execute("SELECT COUNT(*) FROM users")
                 users_count = db.cursor.fetchone()[0]
                 db._execute("SELECT COUNT(*) FROM user_profiles")
