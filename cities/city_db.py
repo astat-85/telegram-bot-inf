@@ -6,6 +6,7 @@ import os
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 
+
 class CityDatabase:
     def __init__(self, json_path: str = None):
         if json_path is None:
@@ -15,7 +16,6 @@ class CityDatabase:
                 Path(__file__).parent.parent / "russia-cities.json",
                 Path.cwd() / "russia-cities.json",
             ]
-            
             for path in possible_paths:
                 if path.exists():
                     json_path = str(path)
@@ -24,7 +24,7 @@ class CityDatabase:
         self.json_path = json_path
         self.cities = []
         self._load()
-    
+
     def _load(self):
         """Загружает справочник из JSON"""
         if not self.json_path or not os.path.exists(self.json_path):
@@ -37,7 +37,7 @@ class CityDatabase:
             print(f"✅ Загружено {len(self.cities)} городов из {self.json_path}")
         except Exception as e:
             print(f"❌ Ошибка загрузки городов: {e}")
-    
+
     def search(self, query: str) -> List[Dict]:
         """
         Поиск городов по названию
@@ -60,7 +60,7 @@ class CityDatabase:
                 break
         
         return results
-    
+
     def get_unique_cities(self, query: str) -> Tuple[List[Dict], bool]:
         """
         Возвращает (список городов, уникальны_ли)
@@ -68,7 +68,7 @@ class CityDatabase:
         """
         results = self.search(query)
         return results, len(results) == 1
-    
+
     def get_city_by_name_and_region(self, name: str, region: str) -> Optional[Dict]:
         """
         Получить конкретный город по названию и региону
@@ -84,13 +84,13 @@ class CityDatabase:
                 return city
         
         return None
-    
+
     def get_all_cities(self) -> List[Dict]:
         """
         Возвращает весь список городов
         """
         return self.cities.copy()
-    
+
     def get_cities_by_region(self, region: str) -> List[Dict]:
         """
         Возвращает все города в указанном регионе
@@ -104,7 +104,7 @@ class CityDatabase:
                 results.append(city)
         
         return results
-    
+
     def get_timezone_for_city(self, city_name: str, region_name: str = None) -> Optional[str]:
         """
         Получает часовой пояс для города
@@ -124,7 +124,7 @@ class CityDatabase:
                 return None
         
         return None
-    
+
     def format_city_for_display(self, city: Dict) -> str:
         """
         Форматирует город для отображения пользователю
