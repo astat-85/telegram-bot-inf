@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any, List
 from pathlib import Path
 import os
 
+
 # ========== ФУНКЦИЯ RETRY ==========
 def retry_on_db_lock(max_retries=3, delay=0.1):
     """Декоратор для повторных попыток при блокировке БД"""
@@ -26,6 +27,7 @@ def retry_on_db_lock(max_retries=3, delay=0.1):
         return wrapper
     return decorator
 
+
 class ProfileDB:
     def __init__(self, db=None):
         """
@@ -38,7 +40,6 @@ class ProfileDB:
             self._create_tables()
             self.init_default_data()
 
-    
     def _create_tables(self):
         """Создает таблицу профилей, если её нет (с новыми полями)"""
         with self.lock:
@@ -50,7 +51,7 @@ class ProfileDB:
                 first_name TEXT NOT NULL,
                 last_name TEXT,
                 middle_name TEXT,
-                gender TEXT CHECK(gender IN ('male', 'female', NULL)),
+                gender TEXT CHECK (gender IN ('male', 'female', NULL)),
                 birth_day INTEGER CHECK(birth_day BETWEEN 1 AND 31),
                 birth_month INTEGER CHECK(birth_month BETWEEN 1 AND 12),
                 birth_year INTEGER CHECK(birth_year > 1900),
@@ -132,11 +133,11 @@ class ProfileDB:
             ''')
             
             self.db.conn.commit()
-    
+
     # ========== ОСНОВНЫЕ МЕТОДЫ ПРОФИЛЯ ==========
-    
+
     @retry_on_db_lock()
-    def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> bool:
+    def save_profile(self, user_id: int, username: str,  Dict[str, Any]) -> bool:
         """
         Сохраняет или обновляет профиль пользователя
         """
@@ -220,7 +221,7 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка сохранения профиля: {e}")
                 return False
-    
+
     @retry_on_db_lock()
     def get_profile(self, user_id: int) -> Optional[Dict[str, Any]]:
         """
@@ -240,7 +241,7 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка получения профиля: {e}")
                 return None
-    
+
     @retry_on_db_lock()
     def update_last_active(self, user_id: int) -> bool:
         """
@@ -260,7 +261,7 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка обновления активности: {e}")
                 return False
-    
+
     @retry_on_db_lock()
     def get_inactive_profiles(self, days: int = 30) -> List[Dict[str, Any]]:
         """
@@ -281,7 +282,7 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка получения неактивных профилей: {e}")
                 return []
-    
+
     @retry_on_db_lock()
     def archive_profile(self, user_id: int) -> bool:
         """
@@ -302,7 +303,7 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка архивации профиля: {e}")
                 return False
-    
+
     @retry_on_db_lock()
     def restore_profile(self, user_id: int) -> bool:
         """
@@ -323,7 +324,7 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка восстановления профиля: {e}")
                 return False
-    
+
     @retry_on_db_lock()
     def get_archived_profiles(self) -> List[Dict[str, Any]]:
         """
@@ -343,7 +344,7 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка получения архивных профилей: {e}")
                 return []
-    
+
     @retry_on_db_lock()
     def delete_profile(self, user_id: int) -> bool:
         """
@@ -363,9 +364,9 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка удаления профиля: {e}")
                 return False
-    
+
     # ========== МЕТОДЫ ДЛЯ ПРИВЯЗКИ АККАУНТОВ ==========
-    
+
     @retry_on_db_lock()
     def link_account(self, profile_user_id: int, game_account_id: int) -> bool:
         """
@@ -385,7 +386,7 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка привязки аккаунта: {e}")
                 return False
-    
+
     @retry_on_db_lock()
     def unlink_account(self, profile_user_id: int, game_account_id: int) -> bool:
         """
@@ -405,7 +406,7 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка отвязки аккаунта: {e}")
                 return False
-    
+
     @retry_on_db_lock()
     def get_linked_accounts(self, profile_user_id: int) -> List[Dict[str, Any]]:
         """
@@ -427,7 +428,7 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка получения привязанных аккаунтов: {e}")
                 return []
-    
+
     @retry_on_db_lock()
     def get_profile_by_account(self, game_account_id: int) -> Optional[Dict[str, Any]]:
         """
@@ -449,9 +450,9 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка получения профиля по аккаунту: {e}")
                 return None
-    
+
     # ========== МЕТОДЫ ДЛЯ УВЕДОМЛЕНИЙ О ДР ==========
-    
+
     @retry_on_db_lock()
     def get_profiles_with_birthday_in_days(self, days: int) -> List[Dict[str, Any]]:
         """
@@ -470,18 +471,18 @@ class ProfileDB:
                     AND (
                         (strftime('%m-%d', 'now') <= strftime('%m-%d', date('now', '+' || ? || ' days')) AND
                          strftime('%m-%d', date('now', '+' || ? || ' days')) = printf('%02d-%02d', birth_month, birth_day))
-                        OR
+                         OR
                         (strftime('%m-%d', 'now') > strftime('%m-%d', date('now', '+' || ? || ' days')) AND
                          strftime('%m-%d', date('now', '+' || ? || ' days')) = printf('%02d-%02d', birth_month, birth_day))
-                    )
+                     )
                 ''', (days, days, days, days))
                 return [dict(row) for row in self.db.cursor.fetchall()]
             except Exception as e:
                 print(f"❌ Ошибка получения профилей с ДР: {e}")
                 return []
-    
+
     # ========== МЕТОДЫ ДЛЯ ШАБЛОНОВ ==========
-    
+
     @retry_on_db_lock()
     def add_birthday_template(self, template_text: str, is_default: bool = False) -> Optional[int]:
         """
@@ -506,7 +507,7 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка добавления шаблона: {e}")
                 return None
-    
+
     @retry_on_db_lock()
     def get_birthday_templates(self, only_default: bool = False) -> List[Dict[str, Any]]:
         """
@@ -529,12 +530,12 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка получения шаблонов: {e}")
                 return []
-    
+
     # ========== МЕТОДЫ ДЛЯ НАСТРОЕК ==========
-    
+
     @retry_on_db_lock()
     def save_birthday_settings(self, responsible_user_id: int, group_chat_id: int = None, 
-                                notification_3day: bool = True, notification_1day: bool = True,
+                                 notification_3day: bool = True, notification_1day: bool = True,
                                 notification_day: bool = True, use_gpt: bool = False) -> bool:
         """
         Сохраняет настройки уведомлений о ДР
@@ -556,7 +557,7 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка сохранения настроек: {e}")
                 return False
-    
+
     @retry_on_db_lock()
     def get_birthday_settings(self) -> Optional[Dict[str, Any]]:
         """
@@ -575,9 +576,9 @@ class ProfileDB:
             except Exception as e:
                 print(f"❌ Ошибка получения настроек: {e}")
                 return None
-    
+
     # ========== МЕТОДЫ ДЛЯ СТАТИСТИКИ ==========
-    
+
     def get_stats(self) -> Dict[str, Any]:
         """
         Статистика по профилям (с учётом активности)
@@ -638,7 +639,7 @@ class ProfileDB:
                     'percent_with_city': 0,
                     'percent_active': 0
                 }
-    
+
     @retry_on_db_lock()
     def get_all_profiles(self, include_inactive: bool = False) -> List[Dict[str, Any]]:
         """
@@ -660,6 +661,7 @@ class ProfileDB:
                 return [dict(row) for row in self.db.cursor.fetchall()]
             except Exception as e:
                 print(f"❌ Ошибка получения всех профилей: {e}")
+                return []
 
     # ========== ИНИЦИАЛИЗАЦИЯ ДЕФОЛТНЫХ ДАННЫХ ==========
     def init_default_data(self):
@@ -703,5 +705,4 @@ class ProfileDB:
                     print("✅ Добавлены дефолтные настройки уведомлений")
                     
             except Exception as e:
-                print(f"⚠️ Ошибка инициализации дефолтных данных: {e}")                
-                return []
+                print(f"⚠️ Ошибка инициализации дефолтных данных: {e}")
