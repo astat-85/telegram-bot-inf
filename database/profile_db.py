@@ -137,7 +137,7 @@ class ProfileDB:
     # ========== ОСНОВНЫЕ МЕТОДЫ ПРОФИЛЯ ==========
 
     @retry_on_db_lock()
-    def save_profile(self, user_id: int, username: str,  Dict[str, Any]) -> bool:
+    def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> bool:
         """
         Сохраняет или обновляет профиль пользователя
         """
