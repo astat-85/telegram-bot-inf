@@ -32,18 +32,16 @@ class ProfileDB:
     def __init__(self, db=None):
         """
         Инициализация с возможностью передачи готового Database объекта
-        Если db не передан - класс будет работать только через переданный объект
         """
         self.db = db
         self.lock = threading.RLock()
         if db:
             self._create_tables()
             self.init_default_data()
-
+    
     def _create_tables(self):
-        """Создает таблицу профилей, если её нет (с новыми полями)"""
+        """Создает таблицу профилей, если её нет"""
         with self.lock:
-            # Обновляем таблицу user_profiles - добавляем новые поля
             self.db._execute('''
             CREATE TABLE IF NOT EXISTS user_profiles (
                 user_id INTEGER PRIMARY KEY,
@@ -67,7 +65,6 @@ class ProfileDB:
             )
             ''')
             
-            # Проверяем наличие новых колонок и добавляем если нет
             self.db._execute("PRAGMA table_info(user_profiles)")
             columns = [col[1] for col in self.db.cursor.fetchall()]
             
@@ -78,7 +75,6 @@ class ProfileDB:
             if 'archived_at' not in columns:
                 self.db._execute("ALTER TABLE user_profiles ADD COLUMN archived_at TIMESTAMP")
             
-            # Создаем таблицу для привязки аккаунтов
             self.db._execute('''
             CREATE TABLE IF NOT EXISTS user_account_links (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -91,7 +87,6 @@ class ProfileDB:
             )
             ''')
             
-            # Создаем таблицу для шаблонов поздравлений
             self.db._execute('''
             CREATE TABLE IF NOT EXISTS birthday_templates (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -101,7 +96,6 @@ class ProfileDB:
             )
             ''')
             
-            # Создаем таблицу для настроек уведомлений
             self.db._execute('''
             CREATE TABLE IF NOT EXISTS birthday_settings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -115,154 +109,113 @@ class ProfileDB:
             )
             ''')
             
-            # Индексы
-            self.db._execute('''
-            CREATE INDEX IF NOT EXISTS idx_profile_city ON user_profiles(city)
-            ''')
-            self.db._execute('''
-            CREATE INDEX IF NOT EXISTS idx_profile_active ON user_profiles(is_active, last_active)
-            ''')
-            self.db._execute('''
-            CREATE INDEX IF NOT EXISTS idx_profile_birthday ON user_profiles(birth_day, birth_month)
-            ''')
-            self.db._execute('''
-            CREATE INDEX IF NOT EXISTS idx_account_links_profile ON user_account_links(profile_user_id)
-            ''')
-            self.db._execute('''
-            CREATE INDEX IF NOT EXISTS idx_account_links_account ON user_account_links(game_account_id)
-            ''')
+            self.db._execute('CREATE INDEX IF NOT EXISTS idx_profile_city ON user_profiles(city)')
+            self.db._execute('CREATE INDEX IF NOT EXISTS idx_profile_active ON user_profiles(is_active, last_active)')
+            self.db._execute('CREATE INDEX IF NOT EXISTS idx_profile_birthday ON user_profiles(birth_day, birth_month)')
+            self.db._execute('CREATE INDEX IF NOT EXISTS idx_account_links_profile ON user_account_links(profile_user_id)')
+            self.db._execute('CREATE INDEX IF NOT EXISTS idx_account_links_account ON user_account_links(game_account_id)')
             
             self.db.conn.commit()
-
-    # ========== ОСНОВНЫЕ МЕТОДЫ ПРОФИЛЯ ==========
-
+    
     @retry_on_db_lock()
-def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> bool:
-    """
-    Сохраняет или обновляет профиль пользователя
-    """
-    if not self.db:
-        raise ValueError("Database object not provided")
-        
-    with self.lock:
-        try:
-            # Проверяем существование
-            self.db._execute(
-                "SELECT user_id FROM user_profiles WHERE user_id = ?",
-                (user_id,)
-            )
-            exists = self.db.cursor.fetchone()
-            
-            if exists:
-                # ===== ОБНОВЛЕНИЕ СУЩЕСТВУЮЩЕГО =====
-                # Сначала получаем текущие данные
-                self.db._execute(
-                    "SELECT * FROM user_profiles WHERE user_id = ?",
-                    (user_id,)
-                )
-                current = dict(self.db.cursor.fetchone())
-                
-                # merged_data = текущие + новые данные
-                merged_data = current.copy()
-                for key, value in data.items():
-                    if value is not None:
-                        merged_data[key] = value
-                
-                query = '''
-                UPDATE user_profiles SET
-                    username = ?,
-                    first_name = ?,
-                    last_name = ?,
-                    middle_name = ?,
-                    gender = ?,
-                    birth_day = ?,
-                    birth_month = ?,
-                    birth_year = ?,
-                    city = ?,
-                    region = ?,
-                    timezone = ?,
-                    location_manually_set = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE user_id = ?
-                '''
-                
-                self.db._execute(query, (
-                    username,
-                    merged_data.get('first_name'),
-                    merged_data.get('last_name'),
-                    merged_data.get('middle_name'),
-                    merged_data.get('gender'),
-                    merged_data.get('birth_day'),
-                    merged_data.get('birth_month'),
-                    merged_data.get('birth_year'),
-                    merged_data.get('city'),
-                    merged_data.get('region'),
-                    merged_data.get('timezone', 'Europe/Moscow'),
-                    merged_data.get('location_manually_set', False),
-                    user_id
-                ))
-            else:
-                # ===== СОЗДАНИЕ НОВОГО =====
-                query = '''
-                INSERT INTO user_profiles (
-                    user_id, username, first_name, last_name, middle_name,
-                    gender, birth_day, birth_month, birth_year,
-                    city, region, timezone, location_manually_set,
-                    last_active
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                '''
-                
-                self.db._execute(query, (
-                    user_id,
-                    username,
-                    data.get('first_name'),
-                    data.get('last_name'),
-                    data.get('middle_name'),
-                    data.get('gender'),
-                    data.get('birth_day'),
-                    data.get('birth_month'),
-                    data.get('birth_year'),
-                    data.get('city'),
-                    data.get('region'),
-                    data.get('timezone', 'Europe/Moscow'),
-                    data.get('location_manually_set', False)
-                ))
-            
-            self.db.conn.commit()
-            return True
-            
-        except Exception as e:
-            print(f"❌ Ошибка сохранения профиля: {e}")
-            return False
-
-    @retry_on_db_lock()
-    def get_profile(self, user_id: int) -> Optional[Dict[str, Any]]:
-        """
-        Получает профиль пользователя
-        """
+    def save_profile(self, user_id: int, username: str,  Dict[str, Any]) -> bool:
+        """Сохраняет или обновляет профиль пользователя"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
-                self.db._execute(
-                    "SELECT * FROM user_profiles WHERE user_id = ?",
-                    (user_id,)
-                )
+                self.db._execute("SELECT user_id FROM user_profiles WHERE user_id = ?", (user_id,))
+                exists = self.db.cursor.fetchone()
+                
+                if exists:
+                    query = '''
+                    UPDATE user_profiles SET
+                        username = ?,
+                        first_name = ?,
+                        last_name = ?,
+                        middle_name = ?,
+                        gender = ?,
+                        birth_day = ?,
+                        birth_month = ?,
+                        birth_year = ?,
+                        city = ?,
+                        region = ?,
+                        timezone = ?,
+                        location_manually_set = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE user_id = ?
+                    '''
+                    
+                    self.db._execute(query, (
+                        username,
+                        data.get('first_name'),
+                        data.get('last_name'),
+                        data.get('middle_name'),
+                        data.get('gender'),
+                        data.get('birth_day'),
+                        data.get('birth_month'),
+                        data.get('birth_year'),
+                        data.get('city'),
+                        data.get('region'),
+                        data.get('timezone', 'Europe/Moscow'),
+                        data.get('location_manually_set', False),
+                        user_id
+                    ))
+                else:
+                    query = '''
+                    INSERT INTO user_profiles (
+                        user_id, username, first_name, last_name, middle_name,
+                        gender, birth_day, birth_month, birth_year,
+                        city, region, timezone, location_manually_set,
+                        last_active
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    '''
+                    
+                    self.db._execute(query, (
+                        user_id,
+                        username,
+                        data.get('first_name'),
+                        data.get('last_name'),
+                        data.get('middle_name'),
+                        data.get('gender'),
+                        data.get('birth_day'),
+                        data.get('birth_month'),
+                        data.get('birth_year'),
+                        data.get('city'),
+                        data.get('region'),
+                        data.get('timezone', 'Europe/Moscow'),
+                        data.get('location_manually_set', False)
+                    ))
+                
+                self.db.conn.commit()
+                return True
+                
+            except Exception as e:
+                print(f"❌ Ошибка сохранения профиля: {e}")
+                return False
+    
+    @retry_on_db_lock()
+    def get_profile(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Получает профиль пользователя"""
+        if not self.db:
+            raise ValueError("Database object not provided")
+        
+        with self.lock:
+            try:
+                self.db._execute("SELECT * FROM user_profiles WHERE user_id = ?", (user_id,))
                 row = self.db.cursor.fetchone()
                 return dict(row) if row else None
             except Exception as e:
                 print(f"❌ Ошибка получения профиля: {e}")
                 return None
-
+    
     @retry_on_db_lock()
     def update_last_active(self, user_id: int) -> bool:
-        """
-        Обновляет время последней активности пользователя
-        """
+        """Обновляет время последней активности пользователя"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
                 self.db._execute(
@@ -274,15 +227,13 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
             except Exception as e:
                 print(f"❌ Ошибка обновления активности: {e}")
                 return False
-
+    
     @retry_on_db_lock()
     def get_inactive_profiles(self, days: int = 30) -> List[Dict[str, Any]]:
-        """
-        Получает профили, неактивные более N дней
-        """
+        """Получает профили, неактивные более N дней"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
                 self.db._execute('''
@@ -295,15 +246,13 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
             except Exception as e:
                 print(f"❌ Ошибка получения неактивных профилей: {e}")
                 return []
-
+    
     @retry_on_db_lock()
     def archive_profile(self, user_id: int) -> bool:
-        """
-        Архивирует профиль (помечает как неактивный)
-        """
+        """Архивирует профиль (помечает как неактивный)"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
                 self.db._execute('''
@@ -316,15 +265,13 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
             except Exception as e:
                 print(f"❌ Ошибка архивации профиля: {e}")
                 return False
-
+    
     @retry_on_db_lock()
     def restore_profile(self, user_id: int) -> bool:
-        """
-        Восстанавливает профиль из архива
-        """
+        """Восстанавливает профиль из архива"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
                 self.db._execute('''
@@ -337,15 +284,13 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
             except Exception as e:
                 print(f"❌ Ошибка восстановления профиля: {e}")
                 return False
-
+    
     @retry_on_db_lock()
     def get_archived_profiles(self) -> List[Dict[str, Any]]:
-        """
-        Получает все архивированные профили
-        """
+        """Получает все архивированные профили"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
                 self.db._execute('''
@@ -357,37 +302,28 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
             except Exception as e:
                 print(f"❌ Ошибка получения архивных профилей: {e}")
                 return []
-
+    
     @retry_on_db_lock()
     def delete_profile(self, user_id: int) -> bool:
-        """
-        Удаляет профиль пользователя
-        """
+        """Удаляет профиль пользователя"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
-                self.db._execute(
-                    "DELETE FROM user_profiles WHERE user_id = ?",
-                    (user_id,)
-                )
+                self.db._execute("DELETE FROM user_profiles WHERE user_id = ?", (user_id,))
                 self.db.conn.commit()
                 return self.db.cursor.rowcount > 0
             except Exception as e:
                 print(f"❌ Ошибка удаления профиля: {e}")
                 return False
-
-    # ========== МЕТОДЫ ДЛЯ ПРИВЯЗКИ АККАУНТОВ ==========
-
+    
     @retry_on_db_lock()
     def link_account(self, profile_user_id: int, game_account_id: int) -> bool:
-        """
-        Привязывает игровой аккаунт к профилю
-        """
+        """Привязывает игровой аккаунт к профилю"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
                 self.db._execute('''
@@ -399,15 +335,13 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
             except Exception as e:
                 print(f"❌ Ошибка привязки аккаунта: {e}")
                 return False
-
+    
     @retry_on_db_lock()
     def unlink_account(self, profile_user_id: int, game_account_id: int) -> bool:
-        """
-        Отвязывает игровой аккаунт от профиля
-        """
+        """Отвязывает игровой аккаунт от профиля"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
                 self.db._execute('''
@@ -419,15 +353,13 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
             except Exception as e:
                 print(f"❌ Ошибка отвязки аккаунта: {e}")
                 return False
-
+    
     @retry_on_db_lock()
     def get_linked_accounts(self, profile_user_id: int) -> List[Dict[str, Any]]:
-        """
-        Получает все привязанные аккаунты для профиля
-        """
+        """Получает все привязанные аккаунты для профиля"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
                 self.db._execute('''
@@ -441,15 +373,13 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
             except Exception as e:
                 print(f"❌ Ошибка получения привязанных аккаунтов: {e}")
                 return []
-
+    
     @retry_on_db_lock()
     def get_profile_by_account(self, game_account_id: int) -> Optional[Dict[str, Any]]:
-        """
-        Получает профиль по ID игрового аккаунта
-        """
+        """Получает профиль по ID игрового аккаунта"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
                 self.db._execute('''
@@ -463,17 +393,13 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
             except Exception as e:
                 print(f"❌ Ошибка получения профиля по аккаунту: {e}")
                 return None
-
-    # ========== МЕТОДЫ ДЛЯ УВЕДОМЛЕНИЙ О ДР ==========
-
+    
     @retry_on_db_lock()
     def get_profiles_with_birthday_in_days(self, days: int) -> List[Dict[str, Any]]:
-        """
-        Получает профили, у которых ДР будет через N дней
-        """
+        """Получает профили, у которых ДР будет через N дней"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
                 self.db._execute('''
@@ -481,35 +407,22 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
                     WHERE is_active = 1
                     AND birth_day IS NOT NULL 
                     AND birth_month IS NOT NULL
-                    AND (
-                        (strftime('%m-%d', 'now') <= strftime('%m-%d', date('now', '+' || ? || ' days')) AND
-                         strftime('%m-%d', date('now', '+' || ? || ' days')) = printf('%02d-%02d', birth_month, birth_day))
-                         OR
-                        (strftime('%m-%d', 'now') > strftime('%m-%d', date('now', '+' || ? || ' days')) AND
-                         strftime('%m-%d', date('now', '+' || ? || ' days')) = printf('%02d-%02d', birth_month, birth_day))
-                     )
-                ''', (days, days, days, days))
+                ''')
                 return [dict(row) for row in self.db.cursor.fetchall()]
             except Exception as e:
                 print(f"❌ Ошибка получения профилей с ДР: {e}")
                 return []
-
-    # ========== МЕТОДЫ ДЛЯ ШАБЛОНОВ ==========
-
+    
     @retry_on_db_lock()
     def add_birthday_template(self, template_text: str, is_default: bool = False) -> Optional[int]:
-        """
-        Добавляет шаблон поздравления
-        """
+        """Добавляет шаблон поздравления"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
                 if is_default:
-                    self.db._execute(
-                        "UPDATE birthday_templates SET is_default = 0"
-                    )
+                    self.db._execute("UPDATE birthday_templates SET is_default = 0")
                 
                 self.db._execute('''
                     INSERT INTO birthday_templates (template_text, is_default)
@@ -520,42 +433,32 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
             except Exception as e:
                 print(f"❌ Ошибка добавления шаблона: {e}")
                 return None
-
+    
     @retry_on_db_lock()
     def get_birthday_templates(self, only_default: bool = False) -> List[Dict[str, Any]]:
-        """
-        Получает шаблоны поздравлений
-        """
+        """Получает шаблоны поздравлений"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
                 if only_default:
-                    self.db._execute(
-                        "SELECT * FROM birthday_templates WHERE is_default = 1"
-                    )
+                    self.db._execute("SELECT * FROM birthday_templates WHERE is_default = 1")
                 else:
-                    self.db._execute(
-                        "SELECT * FROM birthday_templates ORDER BY is_default DESC, id DESC"
-                    )
+                    self.db._execute("SELECT * FROM birthday_templates ORDER BY is_default DESC, id DESC")
                 return [dict(row) for row in self.db.cursor.fetchall()]
             except Exception as e:
                 print(f"❌ Ошибка получения шаблонов: {e}")
                 return []
-
-    # ========== МЕТОДЫ ДЛЯ НАСТРОЕК ==========
-
+    
     @retry_on_db_lock()
     def save_birthday_settings(self, responsible_user_id: int, group_chat_id: int = None, 
                                  notification_3day: bool = True, notification_1day: bool = True,
                                 notification_day: bool = True, use_gpt: bool = False) -> bool:
-        """
-        Сохраняет настройки уведомлений о ДР
-        """
+        """Сохраняет настройки уведомлений о ДР"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
                 self.db._execute('''
@@ -570,65 +473,43 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
             except Exception as e:
                 print(f"❌ Ошибка сохранения настроек: {e}")
                 return False
-
+    
     @retry_on_db_lock()
     def get_birthday_settings(self) -> Optional[Dict[str, Any]]:
-        """
-        Получает настройки уведомлений о ДР
-        """
+        """Получает настройки уведомлений о ДР"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
-                self.db._execute(
-                    "SELECT * FROM birthday_settings WHERE id = 1"
-                )
+                self.db._execute("SELECT * FROM birthday_settings WHERE id = 1")
                 row = self.db.cursor.fetchone()
                 return dict(row) if row else None
             except Exception as e:
                 print(f"❌ Ошибка получения настроек: {e}")
                 return None
-
-    # ========== МЕТОДЫ ДЛЯ СТАТИСТИКИ ==========
-
+    
     def get_stats(self) -> Dict[str, Any]:
-        """
-        Статистика по профилям (с учётом активности)
-        """
+        """Статистика по профилям"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
-                # Всего профилей
                 self.db._execute("SELECT COUNT(*) FROM user_profiles")
                 total = self.db.cursor.fetchone()[0]
                 
-                # Активные профили
                 self.db._execute("SELECT COUNT(*) FROM user_profiles WHERE is_active = 1")
                 active = self.db.cursor.fetchone()[0]
                 
-                # Архивные профили
                 self.db._execute("SELECT COUNT(*) FROM user_profiles WHERE is_active = 0")
                 archived = self.db.cursor.fetchone()[0]
                 
-                # С городом
-                self.db._execute(
-                    "SELECT COUNT(*) FROM user_profiles WHERE city IS NOT NULL AND is_active = 1"
-                )
+                self.db._execute("SELECT COUNT(*) FROM user_profiles WHERE city IS NOT NULL AND is_active = 1")
                 with_city = self.db.cursor.fetchone()[0]
                 
-                # Количество привязанных аккаунтов
                 self.db._execute("SELECT COUNT(*) FROM user_account_links")
                 linked_accounts = self.db.cursor.fetchone()[0]
-                
-                # Количество аккаунтов без привязки
-                self.db._execute('''
-                    SELECT COUNT(*) FROM users u 
-                    WHERE NOT EXISTS (SELECT 1 FROM user_account_links l WHERE l.game_account_id = u.id)
-                ''')
-                unlinked_accounts = self.db.cursor.fetchone()[0]
                 
                 return {
                     'total_profiles': total,
@@ -636,7 +517,6 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
                     'archived_profiles': archived,
                     'with_city': with_city,
                     'linked_accounts': linked_accounts,
-                    'unlinked_accounts': unlinked_accounts,
                     'percent_with_city': round(with_city / active * 100, 1) if active else 0,
                     'percent_active': round(active / total * 100, 1) if total else 0
                 }
@@ -648,51 +528,39 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
                     'archived_profiles': 0,
                     'with_city': 0, 
                     'linked_accounts': 0,
-                    'unlinked_accounts': 0,
                     'percent_with_city': 0,
                     'percent_active': 0
                 }
-
+    
     @retry_on_db_lock()
     def get_all_profiles(self, include_inactive: bool = False) -> List[Dict[str, Any]]:
-        """
-        Получает все профили (для админов)
-        """
+        """Получает все профили (для админов)"""
         if not self.db:
             raise ValueError("Database object not provided")
-            
+        
         with self.lock:
             try:
                 if include_inactive:
-                    self.db._execute(
-                        "SELECT * FROM user_profiles ORDER BY updated_at DESC"
-                    )
+                    self.db._execute("SELECT * FROM user_profiles ORDER BY updated_at DESC")
                 else:
-                    self.db._execute(
-                        "SELECT * FROM user_profiles WHERE is_active = 1 ORDER BY updated_at DESC"
-                    )
+                    self.db._execute("SELECT * FROM user_profiles WHERE is_active = 1 ORDER BY updated_at DESC")
                 return [dict(row) for row in self.db.cursor.fetchall()]
             except Exception as e:
                 print(f"❌ Ошибка получения всех профилей: {e}")
                 return []
-
-    # ========== ИНИЦИАЛИЗАЦИЯ ДЕФОЛТНЫХ ДАННЫХ ==========
+    
     def init_default_data(self):
         """Инициализирует дефолтные шаблоны и настройки"""
         with self.lock:
             try:
-                # Проверяем есть ли шаблоны
                 self.db._execute("SELECT COUNT(*) FROM birthday_templates")
                 count = self.db.cursor.fetchone()[0]
                 
                 if count == 0:
-                    # Добавляем дефолтные шаблоны
                     default_templates = [
                         "🎉 {name}, с днём рождения! Желаем здоровья, счастья и побед! 🏆",
                         "🥳 {name}, поздравляем! Пусть всё получается, а удача всегда будет на твоей стороне! 🍀",
-                        "🎂 {name}, с днём рождения! Новых достижений и ярких побед! ⚡️",
-                        "🎈 {name}, желаем отличного настроения, крепкого здоровья и успехов во всех начинаниях! 💪",
-                        "🌟 {name}, с днём рождения! Пусть сбудутся все мечты и планы! 🚀"
+                        "🎂 {name}, с днём рождения! Новых достижений и ярких побед! ⚡️"
                     ]
                     
                     for template in default_templates:
@@ -703,12 +571,10 @@ def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> boo
                     self.db.conn.commit()
                     print("✅ Добавлены дефолтные шаблоны поздравлений")
                 
-                # Проверяем есть ли настройки
                 self.db._execute("SELECT COUNT(*) FROM birthday_settings")
                 count = self.db.cursor.fetchone()[0]
                 
                 if count == 0:
-                    # Добавляем дефолтные настройки
                     self.db._execute("""
                         INSERT INTO birthday_settings 
                         (id, responsible_user_id, group_chat_id, notification_3day, notification_1day, notification_day, use_gpt)
