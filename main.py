@@ -1461,7 +1461,7 @@ async def batch_toggle(callback: CallbackQuery, state: FSMContext):
     await show_batch_page(callback.message, state)
     await callback.answer()
 
-@router.callback_query(F.data in ["batch_select_all", "batch_deselect_all"])
+@router.callback_query(F.data.startswith("batch_select"))
 async def batch_select_all(callback: CallbackQuery, state: FSMContext):
     if not is_admin(callback.from_user.id):
         await callback.answer("🚫 Доступ запрещен", show_alert=True); return
@@ -1479,7 +1479,7 @@ async def batch_select_all(callback: CallbackQuery, state: FSMContext):
     await show_batch_page(callback.message, state)
     await callback.answer()
 
-@router.callback_query(F.data in ["batch_page_next", "batch_page_prev"])
+@router.callback_query(F.data.startswith("batch_page_"))
 async def batch_page_nav(callback: CallbackQuery, state: FSMContext):
     if not is_admin(callback.from_user.id):
         await callback.answer("🚫 Доступ запрещен", show_alert=True); return
