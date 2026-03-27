@@ -471,9 +471,9 @@ class Database:
                 return self.get_account_by_id(account_id)
         except sqlite3.IntegrityError:
             return None
-    except Exception as e:
-        logger.error(f"Ошибка create_or_update_account: {e}")
-        return None
+        except Exception as e:
+            logger.error(f"Ошибка create_or_update_account: {e}")
+            return None
     
     @retry_on_db_lock()
     def delete_account(self, account_id: int) -> bool:
