@@ -387,38 +387,63 @@ class Database:
             return False
     
     @retry_on_db_lock()
-def create_or_update_account(self, user_id: int, username: str,
-                               game_nickname: str, field_key: str = None,
-                               value: str = None) -> Optional[Dict]:
-    if not self.conn:
-        self._connect()
-    try:
-        self._execute(
-            "SELECT id, game_nickname FROM users WHERE user_id = ? AND game_nickname = ?",
-            (user_id, game_nickname)
-        )
-        existing = self.cursor.fetchone()
-        if existing:
-            account_id = existing['id']
-            old_nick = existing['game_nickname']
-            if field_key and value is not None:
-                db_field = FIELD_DB_MAP.get(field_key, field_key)
-                if not self._validate_field(db_field):
-                    logger.error(f"Неверное поле: {db_field}")
-                    return None
-                self._execute(f"""
-                    UPDATE users
-                    SET {db_field} = ?,
-                    username = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (value, username, account_id))
-                if field_key == "nick" and value != old_nick:
-                    self._execute("""
+    def create_or_update_account(self, user_id: int, username: str,
+                                   game_nickname: str, field_key: str = None,
+                                   value: str = None) -> Optional[Dict]:
+        if not self.conn:
+            self._connect()
+        try:
+            self._execute(
+                "SELECT id, game_nickname FROM users WHERE user_id = ? AND game_nickname = ?",
+                (user_id, game_nickname)
+            )
+            existing = self.cursor.fetchone()
+            if existing:
+                account_id = existing['id']
+                old_nick = existing['game_nickname']
+                if field_key and value is not None:
+                    db_field = FIELD_DB_MAP.get(field_key, field_key)
+                    if not self._validate_field(db_field):
+                        logger.error(f"Неверное поле: {db_field}")
+                        return None
+                    self._execute(f"""
                         UPDATE users
-                        SET game_nickname = ?
+                        SET {db_field} = ?,
+                        username = ?,
+                        updated_at = CURRENT_TIMESTAMP
                         WHERE id = ?
-                    """, (value, account_id))
+                    """, (value, username, account_id))
+                    if field_key == "nick" and value != old_nick:
+                        self._execute("""
+                            UPDATE users
+                            SET game_nickname = ?
+                            WHERE id = ?
+                        """, (value, account_id))
+                else:
+                    if field_key and value is not None:
+                        db_field = FIELD_DB_MAP.get(field_key, field_key)
+                        if not self._validate_field(db_field):
+                            logger.error(f"Неверное поле: {db_field}")
+                            return None
+                        if field_key == "nick":
+                            self._execute(f"""
+                                INSERT INTO users (user_id, username, game_nickname, {db_field})
+                                VALUES (?, ?, ?, ?)
+                            """, (user_id, username, value, value))
+                        else:
+                            self._execute(f"""
+                                INSERT INTO users (user_id, username, game_nickname, {db_field})
+                                VALUES (?, ?, ?, ?)
+                            """, (user_id, username, game_nickname, value))
+                    else:
+                        self._execute("""
+                            INSERT INTO users (user_id, username, game_nickname)
+                            VALUES (?, ?, ?)
+                        """, (user_id, username, game_nickname))
+                account_id = self.cursor.lastrowid
+                self.conn.commit()
+                self.invalidate_cache()
+                return self.get_account_by_id(account_id)
             else:
                 if field_key and value is not None:
                     db_field = FIELD_DB_MAP.get(field_key, field_key)
@@ -440,37 +465,12 @@ def create_or_update_account(self, user_id: int, username: str,
                         INSERT INTO users (user_id, username, game_nickname)
                         VALUES (?, ?, ?)
                     """, (user_id, username, game_nickname))
-            account_id = self.cursor.lastrowid
-            self.conn.commit()
-            self.invalidate_cache()
-            return self.get_account_by_id(account_id)
-        else:
-            if field_key and value is not None:
-                db_field = FIELD_DB_MAP.get(field_key, field_key)
-                if not self._validate_field(db_field):
-                    logger.error(f"Неверное поле: {db_field}")
-                    return None
-                if field_key == "nick":
-                    self._execute(f"""
-                        INSERT INTO users (user_id, username, game_nickname, {db_field})
-                        VALUES (?, ?, ?, ?)
-                    """, (user_id, username, value, value))
-                else:
-                    self._execute(f"""
-                        INSERT INTO users (user_id, username, game_nickname, {db_field})
-                        VALUES (?, ?, ?, ?)
-                    """, (user_id, username, game_nickname, value))
-            else:
-                self._execute("""
-                    INSERT INTO users (user_id, username, game_nickname)
-                    VALUES (?, ?, ?)
-                """, (user_id, username, game_nickname))
-            account_id = self.cursor.lastrowid
-            self.conn.commit()
-            self.invalidate_cache()
-            return self.get_account_by_id(account_id)
-    except sqlite3.IntegrityError:
-        return None
+                account_id = self.cursor.lastrowid
+                self.conn.commit()
+                self.invalidate_cache()
+                return self.get_account_by_id(account_id)
+        except sqlite3.IntegrityError:
+            return None
     except Exception as e:
         logger.error(f"Ошибка create_or_update_account: {e}")
         return None
