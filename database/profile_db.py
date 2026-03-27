@@ -137,90 +137,103 @@ class ProfileDB:
     # ========== ОСНОВНЫЕ МЕТОДЫ ПРОФИЛЯ ==========
 
     @retry_on_db_lock()
-    def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> bool:
-        """
-        Сохраняет или обновляет профиль пользователя
-        """
-        if not self.db:
-            raise ValueError("Database object not provided")
+def save_profile(self, user_id: int, username: str, data: Dict[str, Any]) -> bool:
+    """
+    Сохраняет или обновляет профиль пользователя
+    """
+    if not self.db:
+        raise ValueError("Database object not provided")
+        
+    with self.lock:
+        try:
+            # Проверяем существование
+            self.db._execute(
+                "SELECT user_id FROM user_profiles WHERE user_id = ?",
+                (user_id,)
+            )
+            exists = self.db.cursor.fetchone()
             
-        with self.lock:
-            try:
-                # Проверяем существование
+            if exists:
+                # ===== ОБНОВЛЕНИЕ СУЩЕСТВУЮЩЕГО =====
+                # Сначала получаем текущие данные
                 self.db._execute(
-                    "SELECT user_id FROM user_profiles WHERE user_id = ?",
+                    "SELECT * FROM user_profiles WHERE user_id = ?",
                     (user_id,)
                 )
-                exists = self.db.cursor.fetchone()
+                current = dict(self.db.cursor.fetchone())
                 
-                if exists:
-                    # Обновление
-                    query = '''
-                    UPDATE user_profiles SET
-                        username = ?,
-                        first_name = ?,
-                        last_name = ?,
-                        middle_name = ?,
-                        gender = ?,
-                        birth_day = ?,
-                        birth_month = ?,
-                        birth_year = ?,
-                        city = ?,
-                        region = ?,
-                        timezone = ?,
-                        location_manually_set = ?,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = ?
-                    '''
-                    
-                    self.db._execute(query, (
-                        username,
-                        data.get('first_name'),
-                        data.get('last_name'),
-                        data.get('middle_name'),
-                        data.get('gender'),
-                        data.get('birth_day'),
-                        data.get('birth_month'),
-                        data.get('birth_year'),
-                        data.get('city'),
-                        data.get('region'),
-                        data.get('timezone', 'Europe/Moscow'),
-                        data.get('location_manually_set', False),
-                        user_id
-                    ))
-                else:
-                    # Вставка
-                    query = '''
-                    INSERT INTO user_profiles (
-                        user_id, username, first_name, last_name, middle_name,
-                        gender, birth_day, birth_month, birth_year,
-                        city, region, timezone, location_manually_set,
-                        last_active
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                    '''
-                    
-                    self.db._execute(query, (
-                        user_id,
-                        username,
-                        data.get('first_name'),
-                        data.get('last_name'),
-                        data.get('middle_name'),
-                        data.get('gender'),
-                        data.get('birth_day'),
-                        data.get('birth_month'),
-                        data.get('birth_year'),
-                        data.get('city'),
-                        data.get('region'),
-                        data.get('timezone', 'Europe/Moscow'),
-                        data.get('location_manually_set', False)
-                    ))
+                # merged_data = текущие + новые данные
+                merged_data = current.copy()
+                for key, value in data.items():
+                    if value is not None:
+                        merged_data[key] = value
                 
-                self.db.conn.commit()
-                return True
+                query = '''
+                UPDATE user_profiles SET
+                    username = ?,
+                    first_name = ?,
+                    last_name = ?,
+                    middle_name = ?,
+                    gender = ?,
+                    birth_day = ?,
+                    birth_month = ?,
+                    birth_year = ?,
+                    city = ?,
+                    region = ?,
+                    timezone = ?,
+                    location_manually_set = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+                '''
                 
-            except Exception as e:
-                print(f"❌ Ошибка сохранения профиля: {e}")
-                return False
+                self.db._execute(query, (
+                    username,
+                    merged_data.get('first_name'),
+                    merged_data.get('last_name'),
+                    merged_data.get('middle_name'),
+                    merged_data.get('gender'),
+                    merged_data.get('birth_day'),
+                    merged_data.get('birth_month'),
+                    merged_data.get('birth_year'),
+                    merged_data.get('city'),
+                    merged_data.get('region'),
+                    merged_data.get('timezone', 'Europe/Moscow'),
+                    merged_data.get('location_manually_set', False),
+                    user_id
+                ))
+            else:
+                # ===== СОЗДАНИЕ НОВОГО =====
+                query = '''
+                INSERT INTO user_profiles (
+                    user_id, username, first_name, last_name, middle_name,
+                    gender, birth_day, birth_month, birth_year,
+                    city, region, timezone, location_manually_set,
+                    last_active
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                '''
+                
+                self.db._execute(query, (
+                    user_id,
+                    username,
+                    data.get('first_name'),
+                    data.get('last_name'),
+                    data.get('middle_name'),
+                    data.get('gender'),
+                    data.get('birth_day'),
+                    data.get('birth_month'),
+                    data.get('birth_year'),
+                    data.get('city'),
+                    data.get('region'),
+                    data.get('timezone', 'Europe/Moscow'),
+                    data.get('location_manually_set', False)
+                ))
+            
+            self.db.conn.commit()
+            return True
+            
+        except Exception as e:
+            print(f"❌ Ошибка сохранения профиля: {e}")
+            return False
 
     @retry_on_db_lock()
     def get_profile(self, user_id: int) -> Optional[Dict[str, Any]]:
