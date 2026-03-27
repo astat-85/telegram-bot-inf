@@ -989,12 +989,13 @@ async def step_next(msg_or_cb, state: FSMContext):
 async def step_input(message: Message, state: FSMContext):
     data = await state.get_data()
     field = data.get("step_field")
+    account_id = data.get("step_account")
     step_data = data.get("step_data", {})
     step_temp = data.get("step_temp", "")
     field_name = FIELD_FULL_NAMES.get(field, field)
 
     if message.text == "🚫 Отмена":
-        await message.answer("❌ Отменено", reply_markup=get_main_kb(message.from_user.id))
+        await message.answer("❌ Действие отменено", reply_markup=get_main_kb(message.from_user.id))
         await state.clear()
         return
 
@@ -1008,44 +1009,63 @@ async def step_input(message: Message, state: FSMContext):
         await step_next(message, state)
         return
 
-    # ===== ПРОВЕРКА: КНОПКА ИЛИ КЛАВИАТУРА? =====
-    is_single_char = len(message.text) == 1 and message.text in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ",", "⌫"]
+    # ===== ПРОВЕРКА: ЭТО КНОПКА ИЛИ КЛАВИАТУРА? =====
+    # Кнопка = ОДИН символ И есть step_temp (значит уже идёт набор)
+    # Клавиатура = НЕСКОЛЬКО символов ИЛИ step_temp пустой
     
-    if is_single_char:
-        # ===== РЕЖИМ КНОПОК =====
-        if message.text in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
-            step_temp += message.text
-            await state.update_data(step_temp=step_temp)
-            await message.answer(f"📝 Текущее: {step_temp}")
-            return
-        
-        if message.text == ",":
-            if field in ["bm", "pl1", "pl2", "pl3"] and "," not in step_temp:
-                step_temp += ","
-                await state.update_data(step_temp=step_temp)
-                await message.answer(f"📝 Текущее: {step_temp}")
-            else:
-                await message.answer("📝 Введите целое число без запятой")
-            return
-        
-        if message.text == "⌫":
+    is_single_digit = len(message.text) == 1 and message.text in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]
+    is_comma = message.text == ","
+    is_backspace = message.text == "⌫"
+    is_ready = message.text == "✅ Готово"
+    
+    # РЕЖИМ КНОПОК: только если это спецсимволы клавиатуры
+    if is_backspace or is_ready:
+        # ===== ОБРАБОТКА СПЕЦКНОПОК =====
+        if is_backspace:
             step_temp = step_temp[:-1] if step_temp else ""
             await state.update_data(step_temp=step_temp)
-            await message.answer(f"📝 Текущее: {step_temp}" if step_temp else "📝 Очищено")
+            if step_temp:
+                await message.answer(f"📝 Текущее значение: {step_temp}")
+            else:
+                await message.answer(f"📝 Значение очищено")
             return
         
-        if message.text == "✅ Готово":
+        if is_ready:
             if step_temp:
                 value = step_temp
                 await state.update_data(step_temp="")
             else:
-                await message.answer("❌ Нет значения. Используйте кнопки.")
+                await message.answer("❌ Нет введенного значения. Используйте кнопки с цифрами.")
                 return
+    
+    elif is_single_digit or is_comma:
+        # ===== ОДИН СИМВОЛ — РЕЖАЕМ КНОПОК =====
+        if step_temp == "":
+            # step_temp пустой — это ввод с клавиатуры, не накапливаем!
+            value = message.text.strip()
+            await state.update_data(step_temp="")
+            print(f"⌨️ Ручной ввод (1 символ): '{value}'")
         else:
-            await message.answer("❌ Используйте кнопки или нажмите ✅ Готово")
-            return
+            # step_temp не пустой — продолжаем набор через кнопки
+            if is_comma:
+                if field in ["bm", "pl1", "pl2", "pl3"]:
+                    if "," not in step_temp:
+                        step_temp += ","
+                        await state.update_data(step_temp=step_temp)
+                        await message.answer(f"📝 Текущее значение: {step_temp}")
+                    else:
+                        await message.answer(f"📝 Введите целое число без запятой")
+                else:
+                    await message.answer(f"📝 Введите целое число без запятой")
+                return
+            else:
+                step_temp += message.text
+                await state.update_data(step_temp=step_temp)
+                await message.answer(f"📝 Текущее значение: {step_temp}")
+                return
+    
     else:
-        # ===== РУЧНОЙ ВВОД С КЛАВИАТУРЫ =====
+        # ===== НЕСКОЛЬКО СИМВОЛОВ — КЛАВИАТУРА =====
         value = message.text.strip()
         await state.update_data(step_temp="")
         print(f"⌨️ Ручной ввод: '{value}'")
@@ -1054,20 +1074,28 @@ async def step_input(message: Message, state: FSMContext):
             await message.answer("❌ Значение не может быть пустым")
             return
 
-    # ===== ВАЛИДАЦИЯ =====
+    # ===== ВАЛИДАЦИЯ ЧИСЛОВЫХ ПОЛЕЙ =====
     if field in ["power", "bm", "dragon", "stands", "research", "pl1", "pl2", "pl3"]:
         value = value.replace('.', ',')
         success, error_msg, cleaned_value = validate_numeric_input(field, value)
         if not success:
-            kb = get_numeric_kb(decimal=True) if field in ["bm", "pl1", "pl2", "pl3"] else get_numeric_kb(decimal=False)
+            if field in ["bm", "pl1", "pl2", "pl3"]:
+                kb = get_numeric_kb(decimal=True)
+            else:
+                kb = get_numeric_kb(decimal=False)
             await message.answer(error_msg, reply_markup=kb)
             return
         value = cleaned_value
 
-    # ===== СОХРАНЕНИЕ И ПЕРЕХОД =====
+    # ===== СОХРАНЕНИЕ И ПЕРЕХОД К СЛЕДУЮЩЕМУ ШАГУ =====
     step_data[field] = value
     await message.answer(f"✅ {field_name}: {value}")
-    await state.update_data(step_data=step_data, step_index=data.get("step_index", 0) + 1, step_temp="")
+    
+    await state.update_data(
+        step_data=step_data,
+        step_index=data.get("step_index", 0) + 1,
+        step_temp=""  # ← Очищаем step_temp для следующего шага!
+    )
     await step_next(message, state)
 
 async def step_finish(msg_or_cb, state: FSMContext, early=False):
