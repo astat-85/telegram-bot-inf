@@ -1719,7 +1719,6 @@ async def step_input(message: Message, state: FSMContext):
     account_id = data.get("step_account")
     step_data = data.get("step_data", {})
     step_temp = data.get("step_temp", "")
-    
     field_name = FIELD_FULL_NAMES.get(field, field)
 
     if message.text == "🚫 Отмена":
@@ -1737,23 +1736,32 @@ async def step_input(message: Message, state: FSMContext):
         await step_next(message, state)
         return
 
-    # Режим набора через кнопки
-    if step_temp is not None and step_temp != "":
-        if message.text in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ","]:
-            if message.text == ",":
-                if field in ["bm", "pl1", "pl2", "pl3"]:
-                    if "," not in step_temp:
-                        step_temp += ","
-                else:
-                    await message.answer(f"📝 Введите целое число без запятой")
-                    return
-            else:
-                step_temp += message.text
-                
+    # ===== ПРОВЕРКА: ЭТО КНОПКА ИЛИ КЛАВИАТУРА? =====
+    # Кнопка = ОДИН символ (цифра или запятая)
+    # Клавиатура = НЕСКОЛЬКО символов (например "152")
+    
+    is_single_char = len(message.text) == 1 and message.text in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ",", "⌫"]
+    
+    if is_single_char:
+        # ===== РЕЖИМ КНОПОК =====
+        if message.text in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
+            step_temp += message.text
             await state.update_data(step_temp=step_temp)
             await message.answer(f"📝 Текущее значение: {step_temp}")
             return
-
+        
+        if message.text == ",":
+            if field in ["bm", "pl1", "pl2", "pl3"]:
+                if "," not in step_temp:
+                    step_temp += ","
+                    await state.update_data(step_temp=step_temp)
+                    await message.answer(f"📝 Текущее значение: {step_temp}")
+                else:
+                    await message.answer(f"📝 Введите целое число без запятой")
+            else:
+                await message.answer(f"📝 Введите целое число без запятой")
+            return
+        
         if message.text == "⌫":
             step_temp = step_temp[:-1] if step_temp else ""
             await state.update_data(step_temp=step_temp)
@@ -1762,7 +1770,7 @@ async def step_input(message: Message, state: FSMContext):
             else:
                 await message.answer(f"📝 Значение очищено")
             return
-
+        
         if message.text == "✅ Готово":
             if step_temp:
                 value = step_temp
@@ -1775,57 +1783,39 @@ async def step_input(message: Message, state: FSMContext):
             return
     else:
         # ===== РУЧНОЙ ВВОД С КЛАВИАТУРЫ (ПК ИЛИ ТЕЛЕФОН) =====
+        # Очищаем step_temp при ручном вводе
         value = message.text.strip()
+        await state.update_data(step_temp="")
         
-        # Проверяем, начал ли пользователь набор через кнопки
-        if value in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ","]:
-            if value == ",":
-                if field in ["bm", "pl1", "pl2", "pl3"]:
-                    step_temp = ","
-                else:
-                    await message.answer(f"📝 Введите целое число без запятой")
-                    return
+        print(f"⌨️ Ручной ввод: '{value}'")
+        
+        if not value:
+            await message.answer("❌ Значение не может быть пустым. Введите число или нажмите «⏭ Пропустить»")
+            return
+
+    # ===== ВАЛИДАЦИЯ ЧИСЛОВЫХ ПОЛЕЙ =====
+    if field in ["power", "bm", "dragon", "stands", "research", "pl1", "pl2", "pl3"]:
+        value = value.replace('.', ',')
+        success, error_msg, cleaned_value = validate_numeric_input(field, value)
+        if not success:
+            if field in ["bm", "pl1", "pl2", "pl3"]:
+                kb = get_numeric_kb(decimal=True)
             else:
-                step_temp = value
-                
-            await state.update_data(step_temp=step_temp)
-            await message.answer(f"📝 Текущее значение: {step_temp}")
+                kb = get_numeric_kb(decimal=False)
+            await message.answer(error_msg, reply_markup=kb)
             return
-        else:
-            # Это ручной ввод с клавиатуры (ПК или телефон)
-            print(f"⌨️ Ручной ввод: '{value}'")
-            
-            if not value:
-                await message.answer("❌ Значение не может быть пустым. Введите число или нажмите «⏭ Пропустить»")
-                return
-            
-            # Проверяем валидацию для числовых полей
-            if field in ["power", "bm", "dragon", "stands", "research", "pl1", "pl2", "pl3"]:
-                value = value.replace('.', ',')
-                
-                success, error_msg, cleaned_value = validate_numeric_input(field, value)
-                if not success:
-                    if field in ["bm", "pl1", "pl2", "pl3"]:
-                        kb = get_numeric_kb(decimal=True)
-                    else:
-                        kb = get_numeric_kb(decimal=False)
-                    await message.answer(error_msg, reply_markup=kb)
-                    return
-                
-                value = cleaned_value
-            
-            # Сохраняем значение сразу
-            step_data[field] = value
-            await message.answer(f"✅ {field_name}: {value}")
-            
-            # Переходим к следующему шагу
-            await state.update_data(
-                step_data=step_data,
-                step_index=data.get("step_index", 0) + 1,
-                step_temp=""
-            )
-            await step_next(message, state)
-            return
+        value = cleaned_value
+
+    # ===== СОХРАНЕНИЕ И ПЕРЕХОД К СЛЕДУЮЩЕМУ ШАГУ =====
+    step_data[field] = value
+    await message.answer(f"✅ {field_name}: {value}")
+    
+    await state.update_data(
+        step_data=step_data,
+        step_index=data.get("step_index", 0) + 1,
+        step_temp=""
+    )
+    await step_next(message, state)
 
     if not value:
         await message.answer("❌ Значение не может быть пустым. Введите число или нажмите «⏭ Пропустить»")
