@@ -2,13 +2,13 @@ FROM python:3.9-slim
 
 # Устанавливаем системные зависимости для pymorphy2
 RUN apt-get update && apt-get install -y \
-    wget \
-    && rm -rf /var/lib/apt/lists/*
+    wget && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Копируем зависимости
 COPY requirements.txt .
+
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Скачиваем словари pymorphy2 отдельно (для надежности)
