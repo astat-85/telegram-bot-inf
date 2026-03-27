@@ -1738,12 +1738,13 @@ async def step_input(message: Message, state: FSMContext):
 
     # ===== ПРОВЕРКА: ЭТО КНОПКА ИЛИ КЛАВИАТУРА? =====
     # Кнопка = ОДИН символ (цифра или запятая)
-    # Клавиатура = НЕСКОЛЬКО символов (например "30", "145", "47,5")
+    # Клавиатура = НЕСКОЛЬКО символов (например "15", "3", "47,5")
+    # ВАЖНО: Проверяем длину ввода, а не step_temp!
     
     is_single_char = len(message.text) == 1 and message.text in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ",", "⌫"]
     
     if is_single_char:
-        # ===== РЕЖИМ КНОПОК =====
+        # ===== РЕЖИМ КНОПОК (нажатие на экранные кнопки) =====
         if message.text in ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9"]:
             step_temp += message.text
             await state.update_data(step_temp=step_temp)
@@ -1783,9 +1784,8 @@ async def step_input(message: Message, state: FSMContext):
             return
     else:
         # ===== РУЧНОЙ ВВОД С КЛАВИАТУРЫ (ПК ИЛИ ТЕЛЕФОН) =====
-        value = message.text.strip()
-        
         # Очищаем step_temp при ручном вводе
+        value = message.text.strip()
         await state.update_data(step_temp="")
         
         print(f"⌨️ Ручной ввод: '{value}'")
