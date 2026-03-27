@@ -5,6 +5,7 @@ import re
 from datetime import datetime
 from typing import Optional, Tuple
 
+
 def parse_birthday(text: str) -> Optional[Tuple[int, int, Optional[int]]]:
     """
     Парсит дату рождения из текста
@@ -18,12 +19,11 @@ def parse_birthday(text: str) -> Optional[Tuple[int, int, Optional[int]]]:
     - ДД месяц
     - ДД месяц ГГГГ
     - ДД месяц ГГ
-    
     Возвращает (день, месяц, год) или None
     Год может быть None, если не указан
     """
     text = text.strip().replace(' ', '')
-    
+
     # Паттерн для формата ДДММ, ДДММГГ, ДДММГГГГ
     match = re.match(r'^(\d{2})(\d{2})(\d{2,4})?$', text)
     if match:
@@ -58,7 +58,7 @@ def parse_birthday(text: str) -> Optional[Tuple[int, int, Optional[int]]]:
             year = None
         
         return (day, month, year)
-    
+
     # Формат с точками ДД.ММ или ДД.ММ.ГГГГ
     match = re.match(r'^(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?$', text)
     if match:
@@ -88,5 +88,5 @@ def parse_birthday(text: str) -> Optional[Tuple[int, int, Optional[int]]]:
             year = None
         
         return (day, month, year)
-    
+
     return None
