@@ -35,12 +35,12 @@ city_db = CityDatabase()
 
 # Состояния FSM для заполнения профиля
 class ProfileForm(StatesGroup):
-    waiting_for_name = State()          # Ожидание ФИО
-    waiting_for_gender_choice = State() # Ожидание выбора пола (если имя неоднозначное)
-    waiting_for_city = State()           # Ожидание города
-    waiting_for_birthday = State()       # Ожидание даты рождения
-    waiting_for_confirm = State()        # Подтверждение данных
-    waiting_for_account_link = State()   # Ожидание выбора привязки аккаунта
+    waiting_for_name = State()
+    waiting_for_gender_choice = State()
+    waiting_for_city = State()
+    waiting_for_birthday = State()
+    waiting_for_confirm = State()
+    waiting_for_account_link = State()
 
 # Роутер для профиля
 router = Router()
@@ -77,38 +77,17 @@ def format_timezone_offset(tzid: str) -> str:
     }
     if tzid in timezone_offsets:
         return timezone_offsets[tzid]
-    
-    if 'Asia/Yekaterinburg' in tzid:
-        return 'MSK+2 (UTC+5)'
-    elif 'Asia/Omsk' in tzid:
-        return 'MSK+3 (UTC+6)'
-    elif 'Asia/Novosibirsk' in tzid:
-        return 'MSK+4 (UTC+7)'
-    elif 'Asia/Krasnoyarsk' in tzid:
-        return 'MSK+4 (UTC+7)'
-    elif 'Asia/Irkutsk' in tzid:
-        return 'MSK+5 (UTC+8)'
-    elif 'Asia/Yakutsk' in tzid:
-        return 'MSK+6 (UTC+9)'
-    elif 'Asia/Vladivostok' in tzid:
-        return 'MSK+7 (UTC+10)'
-    elif 'Asia/Magadan' in tzid:
-        return 'MSK+8 (UTC+11)'
-    elif 'Asia/Kamchatka' in tzid:
-        return 'MSK+9 (UTC+12)'
-    
     return tzid.replace('Europe/', '').replace('Asia/', '')
 
 async def check_subscription_wrapper(user_id: int) -> bool:
     """Обертка для проверки подписки"""
     global _check_subscription_func
     if _check_subscription_func is None:
-        print("⚠️ Функция проверки подписки не установлена, разрешаем доступ")
         return True
     return await _check_subscription_func(user_id)
 
 def format_profile(profile: dict, linked_accounts: list = None) -> str:
-    """Форматирует данные профиля для вывода с привязанными никами"""
+    """Форматирует данные профиля для вывода"""
     full_name = profile['first_name']
     if profile.get('last_name'):
         full_name = f"{profile['last_name']} {full_name}"
@@ -142,17 +121,11 @@ def format_profile(profile: dict, linked_accounts: list = None) -> str:
         f"<b>Часовой пояс:</b> {timezone_display}\n"
     )
     
-    # Привязанные ники
     if linked_accounts:
         nicks = [acc.get('game_nickname', '?') for acc in linked_accounts]
         text += f"\n<b>🎮 Игровые ники:</b> {' / '.join(nicks)}\n"
     else:
         text += f"\n<b>🎮 Игровые ники:</b> не привязаны\n"
-    
-    if profile.get('location_manually_set'):
-        text += "\n<i>✅ Город указан вручную</i>\n"
-    else:
-        text += "\n<i>⏰ Часовой пояс: МСК (по умолчанию)</i>\n"
     
     return text
 
@@ -164,14 +137,7 @@ async def cmd_profile(message: Message):
     user_id = message.from_user.id
     
     if profile_db is None:
-        await message.answer("❌ Ошибка инициализации профиля. Попробуйте позже.")
-        return
-    
-    if not await check_subscription_wrapper(user_id):
-        await message.answer(
-            "❌ Для доступа к профилю нужно быть подписчиком группы",
-            reply_markup=get_profile_menu_keyboard(has_profile=False)
-        )
+        await message.answer("❌ Ошибка инициализации профиля")
         return
     
     profile = profile_db.get_profile(user_id)
@@ -181,16 +147,11 @@ async def cmd_profile(message: Message):
             "👤 <b>Личное дело</b>\n\n"
             "Сведения необходимы:\n"
             "• Для идентификации личного состава\n"
-            "• Определения часового пояса (чтоб не будить среди ночи)\n"
-            "• Знать возрастной состав союза (кто тут старый краб)\n"
-            "• Напомнить Вам о Вашем ДР (чтоб не забыли налить)"
+            "• Определения часового пояса\n"
+            "• Напомнить о Вашем ДР"
         )
-        await message.answer(
-            text,
-            reply_markup=get_profile_menu_keyboard(has_profile=False)
-        )
+        await message.answer(text, reply_markup=get_profile_menu_keyboard(has_profile=False))
     else:
-        # Получаем привязанные аккаунты
         linked_accounts = profile_db.get_linked_accounts(user_id)
         text = format_profile(profile, linked_accounts)
         await message.answer(
@@ -205,17 +166,13 @@ async def start_profile_fill(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await callback.message.edit_text(
         "📝 <b>Заполнение профиля</b>\n\n"
-        "Введите ваше <b>имя</b> (обязательно) и, если хотите, "
-        "фамилию и отчество.\n\n"
+        "Введите ваше <b>имя</b> (обязательно) и, если хотите, фамилию и отчество.\n\n"
         "Примеры:\n"
-        "• <i>Иван</i>\n"
-        "• <i>Иван Петров</i>\n"
-        "• <i>Иван Сергеевич Петров</i>"
+        "• Иван\n"
+        "• Иван Петров\n"
+        "• Иван Сергеевич Петров"
     )
-    await callback.message.answer(
-        "📝 Введите Имя или ФИО:",
-        reply_markup=get_back_keyboard()
-    )
+    await callback.message.answer("📝 Введите Имя или ФИО:", reply_markup=get_back_keyboard())
     await state.set_state(ProfileForm.waiting_for_name)
 
 @router.message(ProfileForm.waiting_for_name)
@@ -223,142 +180,313 @@ async def process_name(message: Message, state: FSMContext):
     """Обработка введенного ФИО"""
     text = message.text.strip()
     if text == "⬅️ Назад":
-        data = await state.get_data()
-        edit_mode = data.get('edit_mode', False)
-        
-        if edit_mode:
-            await state.clear()
-            await cmd_profile(message)
-        else:
-            await state.clear()
-            await message.answer(
-                "❌ Заполнение отменено",
-                reply_markup=get_profile_menu_keyboard(has_profile=False)
-            )
+        await state.clear()
+        await cmd_profile(message)
         return
     
     parts = text.split()
-    
     data = {}
     if len(parts) == 1:
         data['first_name'] = parts[0].capitalize()
-        data['last_name'] = None
-        data['middle_name'] = None
     elif len(parts) == 2:
         data['first_name'] = parts[0].capitalize()
         data['last_name'] = parts[1].capitalize()
-        data['middle_name'] = None
     elif len(parts) >= 3:
         data['first_name'] = parts[0].capitalize()
         data['middle_name'] = parts[1].capitalize()
         data['last_name'] = ' '.join(parts[2:]).capitalize()
-    else:
-        await message.answer("❌ Слишком мало данных. Введите хотя бы имя.")
-        return
     
     gender = detect_gender_by_name(data['first_name'])
-    
-    if gender == 'male':
-        data['gender'] = 'male'
-        gender_text = "мужской"
-        await message.answer(f"✅ Определен пол: {gender_text}")
-        
-        await state.update_data(profile_data=data)
-        
-        await message.answer(
-            "🏰 <b>Город</b>\n\n"
-            "Введите ваш город (необязательно).\n"
-            "Если укажете город, часовой пояс определится автоматически.\n\n"
-            "Или нажмите <b>⏭ Пропустить</b>.",
-            reply_markup=get_skip_keyboard()
-        )
-        await state.set_state(ProfileForm.waiting_for_city)
-        
-    elif gender == 'female':
-        data['gender'] = 'female'
-        gender_text = "женский"
-        await message.answer(f"✅ Определен пол: {gender_text}")
-        
-        await state.update_data(profile_data=data)
-        
-        await message.answer(
-            "🏰 <b>Город</b>\n\n"
-            "Введите ваш город (необязательно).\n"
-            "Если укажете город, часовой пояс определится автоматически.\n\n"
-            "Или нажмите <b>⏭ Пропустить</b>.",
-            reply_markup=get_skip_keyboard()
-        )
-        await state.set_state(ProfileForm.waiting_for_city)
-        
+    if gender:
+        data['gender'] = gender
+        await message.answer(f"✅ Определен пол: {'мужской' if gender == 'male' else 'женский'}")
     else:
-        await state.update_data(profile_data=data)
-        
         gender_kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="👨 Мужской", callback_data="gender_male")],
-            [InlineKeyboardButton(text="👩 Женский", callback_data="gender_female")],
-            [InlineKeyboardButton(text="⬅️ Назад", callback_data="gender_cancel")]
+            [InlineKeyboardButton(text="👩 Женский", callback_data="gender_female")]
         ])
-        
-        await message.answer(
-            f"❓ Не удалось однозначно определить пол для имени '{data['first_name']}'.\n"
-            f"Пожалуйста, укажите ваш пол:",
-            reply_markup=gender_kb
-        )
+        await message.answer(f"❓ Не удалось определить пол. Выберите:", reply_markup=gender_kb)
+        await state.update_data(profile_data=data)
         await state.set_state(ProfileForm.waiting_for_gender_choice)
+        return
+    
+    await state.update_data(profile_data=data)
+    await message.answer(
+        "🏰 <b>Город</b>\n\n"
+        "Введите ваш город (необязательно).\n"
+        "Или нажмите <b>⏭ Пропустить</b>.",
+        reply_markup=get_skip_keyboard()
+    )
+    await state.set_state(ProfileForm.waiting_for_city)
 
 @router.callback_query(F.data.startswith("gender_"))
 async def gender_choice_callback(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора пола"""
     await callback.answer()
     choice = callback.data.replace("gender_", "")
-    
-    if choice == "cancel":
-        data = await state.get_data()
-        edit_mode = data.get('edit_mode', False)
-        
-        await callback.message.delete()
-        
-        if edit_mode:
-            await state.clear()
-            await cmd_profile(callback.message)
-        else:
-            await state.clear()
-            await callback.message.answer(
-                "❌ Заполнение отменено",
-                reply_markup=get_profile_menu_keyboard(has_profile=False)
-            )
-        return
-    
     state_data = await state.get_data()
     profile_data = state_data.get('profile_data', {})
-    
-    if choice == "male":
-        profile_data['gender'] = 'male'
-        gender_text = "мужской"
-    elif choice == "female":
-        profile_data['gender'] = 'female'
-        gender_text = "женский"
-    else:
-        await callback.message.delete()
-        await callback.message.answer(
-            "❌ Неверный выбор",
-            reply_markup=get_profile_menu_keyboard(has_profile=False)
-        )
-        await state.clear()
-        return
-    
+    profile_data['gender'] = 'male' if choice == 'male' else 'female'
     await state.update_data(profile_data=profile_data)
-    
     await callback.message.delete()
-    await callback.message.answer(f"✅ Выбран пол: {gender_text}")
-    
     await callback.message.answer(
         "🏰 <b>Город</b>\n\n"
         "Введите ваш город (необязательно).\n"
-        "Если укажете город, часовой пояс определится автоматически.\n\n"
         "Или нажмите <b>⏭ Пропустить</b>.",
         reply_markup=get_skip_keyboard()
     )
     await state.set_state(ProfileForm.waiting_for_city)
 
-# ... (остальные функции продолжаются в том же духе - все пробелы удалены)
+@router.message(ProfileForm.waiting_for_city)
+async def process_city(message: Message, state: FSMContext):
+    """Обработка введенного города"""
+    text = message.text.strip()
+    
+    if text == "⏭ Пропустить":
+        data = await state.get_data()
+        profile_data = data.get('profile_data', {})
+        profile_data['timezone'] = 'Europe/Moscow'
+        profile_data['location_manually_set'] = False
+        await state.update_data(profile_data=profile_data)
+        await message.answer(
+            "📅 <b>Дата рождения</b>\n\n"
+            "Введите дату рождения:\n"
+            "• ДДММ (1503)\n"
+            "• ДДММГГГГ (15031990)\n"
+            "• ДД.ММ.ГГГГ (15.03.1990)",
+            reply_markup=get_skip_keyboard()
+        )
+        await state.set_state(ProfileForm.waiting_for_birthday)
+        return
+    
+    if text == "⬅️ Назад":
+        await state.clear()
+        await cmd_profile(message)
+        return
+    
+    # ===== ПОИСК ГОРОДА =====
+    print(f"🔍 Поиск города: '{text}'")
+    cities = city_db.search(text)
+    print(f"🔍 Найдено городов: {len(cities)}")
+    
+    if not cities:
+        await message.answer(
+            f"❌ Город '{text}' не найден.\n\n"
+            "Проверьте написание или нажмите <b>⏭ Пропустить</b>.",
+            reply_markup=get_skip_keyboard()
+        )
+        return
+    
+    if len(cities) == 1:
+        city = cities[0]
+        data = await state.get_data()
+        profile_data = data.get('profile_data', {})
+        profile_data['city'] = city['name']
+        profile_data['region'] = city['region']['name']
+        profile_data['timezone'] = city['timezone']['tzid']
+        profile_data['location_manually_set'] = True
+        await state.update_data(profile_data=profile_data)
+        await message.answer(f"✅ Город: {city['name']}, {city['region']['name']}")
+        await message.answer(
+            "📅 <b>Дата рождения</b>\n\n"
+            "Введите дату рождения:\n"
+            "• ДДММ (1503)\n"
+            "• ДДММГГГГ (15031990)\n"
+            "• ДД.ММ.ГГГГ (15.03.1990)",
+            reply_markup=get_skip_keyboard()
+        )
+        await state.set_state(ProfileForm.waiting_for_birthday)
+    else:
+        await message.answer("🔍 Найдено несколько городов. Уточните:", reply_markup=get_city_choice_keyboard(cities))
+
+@router.callback_query(F.data.startswith("city_"))
+async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора города из списка"""
+    await callback.answer()
+    data = callback.data
+    
+    if data == "city_retry":
+        await callback.message.delete()
+        await callback.message.answer("🏰 Введите название города:", reply_markup=get_back_keyboard())
+        return
+    
+    if data == "city_skip":
+        state_data = await state.get_data()
+        profile_data = state_data.get('profile_data', {})
+        profile_data['timezone'] = 'Europe/Moscow'
+        await state.update_data(profile_data=profile_data)
+        await callback.message.delete()
+        await callback.message.answer(
+            "📅 <b>Дата рождения</b>\n\n"
+            "Введите дату рождения:",
+            reply_markup=get_skip_keyboard()
+        )
+        await state.set_state(ProfileForm.waiting_for_birthday)
+        return
+    
+    if data.startswith("city_select_"):
+        city_id_str = data.replace("city_select_", "")
+        all_cities = city_db.get_all_cities()
+        selected_city = None
+        for city in all_cities:
+            if str(city.get('id', '')) == city_id_str:
+                selected_city = city
+                break
+        
+        if selected_city:
+            state_data = await state.get_data()
+            profile_data = state_data.get('profile_data', {})
+            profile_data['city'] = selected_city['name']
+            profile_data['region'] = selected_city['region']['name']
+            profile_data['timezone'] = selected_city['timezone']['tzid']
+            await state.update_data(profile_data=profile_data)
+            await callback.message.delete()
+            await callback.message.answer(f"✅ Город: {selected_city['name']}")
+            await callback.message.answer(
+                "📅 <b>Дата рождения</b>\n\n"
+                "Введите дату рождения:",
+                reply_markup=get_skip_keyboard()
+            )
+            await state.set_state(ProfileForm.waiting_for_birthday)
+
+@router.message(ProfileForm.waiting_for_birthday)
+async def process_birthday(message: Message, state: FSMContext):
+    """Обработка введенной даты рождения"""
+    global profile_db
+    text = message.text.strip()
+    
+    if text == "⏭ Пропустить":
+        data = await state.get_data()
+        profile_data = data.get('profile_data', {})
+        user_id = message.from_user.id
+        username = message.from_user.username or f"user_{user_id}"
+        profile_db.save_profile(user_id, username, profile_data)
+        profile = profile_db.get_profile(user_id)
+        linked_accounts = profile_db.get_linked_accounts(user_id)
+        await message.answer(
+            "✅ <b>Профиль сохранен!</b>\n\n" + format_profile(profile, linked_accounts),
+            reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts)),
+            parse_mode="HTML"
+        )
+        await state.clear()
+        return
+    
+    if text == "⬅️ Назад":
+        await state.clear()
+        await cmd_profile(message)
+        return
+    
+    parsed = parse_birthday(text)
+    if not parsed:
+        await message.answer(
+            "❌ Неверный формат даты.\n\n"
+            "Примеры:\n"
+            "• ДДММ (1503)\n"
+            "• ДДММГГГГ (15031990)\n"
+            "• ДД.ММ.ГГГГ (15.03.1990)",
+            reply_markup=get_skip_keyboard()
+        )
+        return
+    
+    day, month, year = parsed
+    data = await state.get_data()
+    profile_data = data.get('profile_data', {})
+    profile_data['birth_day'] = day
+    profile_data['birth_month'] = month
+    if year:
+        profile_data['birth_year'] = year
+    
+    user_id = message.from_user.id
+    username = message.from_user.username or f"user_{user_id}"
+    profile_db.save_profile(user_id, username, profile_data)
+    profile = profile_db.get_profile(user_id)
+    linked_accounts = profile_db.get_linked_accounts(user_id)
+    
+    date_str = f"{day:02d}.{month:02d}"
+    if year:
+        date_str += f".{year}"
+    
+    await message.answer(
+        f"✅ <b>Профиль сохранен!</b>\n\n"
+        f"📅 Дата рождения: {date_str}\n\n" + format_profile(profile, linked_accounts),
+        reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts)),
+        parse_mode="HTML"
+    )
+    await state.clear()
+
+@router.callback_query(F.data == "profile_view")
+async def profile_view(callback: CallbackQuery):
+    """Просмотр профиля"""
+    await callback.answer()
+    global profile_db
+    profile = profile_db.get_profile(callback.from_user.id)
+    if profile:
+        linked_accounts = profile_db.get_linked_accounts(callback.from_user.id)
+        await callback.message.edit_text(
+            format_profile(profile, linked_accounts),
+            reply_markup=get_profile_menu_keyboard(has_profile=True, has_accounts=bool(linked_accounts)),
+            parse_mode="HTML"
+        )
+    else:
+        await callback.message.edit_text("👤 Профиль не найден", reply_markup=get_profile_menu_keyboard(has_profile=False))
+
+@router.callback_query(F.data == "profile_edit")
+async def profile_edit(callback: CallbackQuery, state: FSMContext):
+    """Редактирование профиля"""
+    await callback.answer()
+    await callback.message.edit_text(
+        "✏️ <b>Редактирование профиля</b>\n\n"
+        "Что хотите изменить?",
+        reply_markup=get_edit_profile_keyboard()
+    )
+
+@router.callback_query(F.data.startswith("edit_"))
+async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
+    """Выбор поля для редактирования"""
+    await callback.answer()
+    global profile_db
+    field = callback.data.replace("edit_", "")
+    
+    if field == "name":
+        await callback.message.edit_text("✏️ <b>Редактирование имени</b>\n\n" "Введите новое имя или ФИО:")
+        await callback.message.answer("📝 Введите новое имя:", reply_markup=get_back_keyboard())
+        await state.set_state(ProfileForm.waiting_for_name)
+        await state.update_data(edit_mode=True)
+    elif field == "city":
+        await callback.message.edit_text("🏰 <b>Редактирование города</b>\n\n" "Введите ваш город:")
+        await callback.message.answer("📝 Введите новый город:", reply_markup=get_back_keyboard())
+        await state.set_state(ProfileForm.waiting_for_city)
+        await state.update_data(edit_mode=True)
+    elif field == "birthday":
+        await callback.message.edit_text("📅 <b>Редактирование даты рождения</b>\n\n" "Введите новую дату:")
+        await callback.message.answer("📝 Введите новую дату:", reply_markup=get_back_keyboard())
+        await state.set_state(ProfileForm.waiting_for_birthday)
+        await state.update_data(edit_mode=True)
+    elif field == "back":
+        await profile_view(callback)
+
+@router.callback_query(F.data == "profile_accounts")
+async def profile_accounts(callback: CallbackQuery, state: FSMContext):
+    """Показывает привязанные ники"""
+    await callback.answer()
+    global profile_db
+    user_id = callback.from_user.id
+    profile = profile_db.get_profile(user_id)
+    if not profile:
+        await callback.message.edit_text("❌ Сначала заполните профиль", reply_markup=get_profile_menu_keyboard(has_profile=False))
+        return
+    linked_accounts = profile_db.get_linked_accounts(user_id)
+    if linked_accounts:
+        text = "🎮 <b>Ваши игровые ники</b>\n\n"
+        for i, acc in enumerate(linked_accounts, 1):
+            nickname = acc.get('game_nickname', '?')
+            text += f"{i}. {nickname}\n"
+        await callback.message.edit_text(text, reply_markup=get_accounts_management_keyboard(linked_accounts))
+    else:
+        await callback.message.edit_text(
+            "🎮 <b>У вас нет привязанных ников</b>",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text="➕ Привязать", callback_data="link_existing_account")],
+                [InlineKeyboardButton(text="⬅️ Назад", callback_data="profile_view")]
+            ])
+        )
