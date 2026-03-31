@@ -457,7 +457,6 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
         await callback.message.answer("📝 Введите новый город:", reply_markup=get_back_keyboard())
         await state.set_state(ProfileForm.waiting_for_city)
         await state.update_data(edit_mode=True)
-    
     elif field == "gender":
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
@@ -468,7 +467,6 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
         
         await callback.message.edit_text("👤 <b>Выберите пол:</b>", reply_markup=markup)
         # Состояние не меняем, так как выбор мгновенный через callback
-    
     elif field == "birthday":
         await callback.message.edit_text("📅 <b>Редактирование даты рождения</b>\n\n" "Введите новую дату:")
         await callback.message.answer("📝 Введите новую дату:", reply_markup=get_back_keyboard())
