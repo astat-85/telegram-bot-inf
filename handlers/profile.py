@@ -457,6 +457,18 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
         await callback.message.answer("📝 Введите новый город:", reply_markup=get_back_keyboard())
         await state.set_state(ProfileForm.waiting_for_city)
         await state.update_data(edit_mode=True)
+    
+    elif field == "gender":
+        markup = InlineKeyboardMarkup(row_width=2)
+        markup.add(
+            InlineKeyboardButton("Мужской", callback_data="set_gender_male"),
+            InlineKeyboardButton("Женский", callback_data="set_gender_female")
+        )
+        markup.add(InlineKeyboardButton("❌ Отмена", callback_data="profile_edit"))
+        
+        await callback.message.edit_text("👤 <b>Выберите пол:</b>", reply_markup=markup)
+        # Состояние не меняем, так как выбор мгновенный через callback
+    
     elif field == "birthday":
         await callback.message.edit_text("📅 <b>Редактирование даты рождения</b>\n\n" "Введите новую дату:")
         await callback.message.answer("📝 Введите новую дату:", reply_markup=get_back_keyboard())
@@ -464,6 +476,34 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
         await state.update_data(edit_mode=True)
     elif field == "back":
         await profile_view(callback)
+
+@router.callback_query(F.data.startswith("set_gender_"))
+async def process_set_gender(callback: CallbackQuery, state: FSMContext):
+    """Обработка выбора пола при редактировании"""
+    await callback.answer()
+    global profile_db
+    
+    gender = 'male' if 'male' in callback.data else 'female'
+    user_id = callback.from_user.id
+    username = callback.from_user.username or f"user_{user_id}"
+    
+    # Получаем текущий профиль
+    current_profile = profile_db.get_profile(user_id)
+    if not current_profile:
+        await callback.message.edit_text("❌ Профиль не найден")
+        return
+    
+    # Обновляем поле gender
+    current_profile['gender'] = gender
+    
+    # Сохраняем
+    profile_db.save_profile(user_id, username, current_profile)
+    
+    await callback.message.edit_text(
+        f"✅ Пол установлен: {'Мужской' if gender == 'male' else 'Женский'}",
+        reply_markup=get_edit_profile_keyboard() # Возвращаем меню редактирования
+    )
+
 
 @router.callback_query(F.data == "profile_accounts")
 async def profile_accounts(callback: CallbackQuery, state: FSMContext):
