@@ -478,9 +478,8 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith("set_gender_"))
 async def process_set_gender(callback: CallbackQuery, state: FSMContext):
-    """Обработка выбора пола при редактировании"""
+    """Мгновенное сохранение пола и возврат в меню редактирования"""
     try:
-        logger.info(f"User {callback.from_user.id} selected gender: {callback.data}")
         await callback.answer()
         global profile_db
         
@@ -504,16 +503,17 @@ async def process_set_gender(callback: CallbackQuery, state: FSMContext):
         # Сохраняем
         save_result = profile_db.save_profile(user_id, username, current_profile)
         if not save_result:
-            logger.error("Failed to save profile gender")
             await callback.answer("❌ Ошибка сохранения", show_alert=True)
             return
         
-        logger.info(f"Gender saved successfully for user {user_id}")
-        
+        # СРАЗУ возвращаем меню редактирования с обновленным профилем
+        # Это завершает "шаг" выбора и возвращает пользователя в корень меню
         await callback.message.edit_text(
-            f"✅ Пол установлен: {'Мужской' if gender == 'male' else 'Женский'}",
+            "✏️ <b>Редактирование профиля</b>\n\n"
+            "Что хотите изменить еще?",
             reply_markup=get_edit_profile_keyboard()
         )
+        
     except Exception as e:
         logger.error(f"Error in process_set_gender: {e}", exc_info=True)
         await callback.answer(f"❌ Ошибка: {e}", show_alert=True)
