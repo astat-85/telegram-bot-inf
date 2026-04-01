@@ -165,6 +165,8 @@ async def cmd_profile(message: Message):
 async def start_profile_fill(callback: CallbackQuery, state: FSMContext):
     """Начало заполнения профиля"""
     await callback.answer()
+    # Сбрасываем флаг редактирования при начале нового заполнения
+    await state.update_data(edit_mode=False)
     await callback.message.edit_text(
         "📝 <b>Заполнение профиля</b>\n\n"
         "Введите ваше <b>имя</b> (обязательно) и, если хотите, фамилию и отчество.\n\n"
@@ -222,21 +224,50 @@ async def process_name(message: Message, state: FSMContext):
 
 @router.callback_query(F.data.startswith("gender_"))
 async def gender_choice_callback(callback: CallbackQuery, state: FSMContext):
-    """Обработка выбора пола (при первичном заполнении)"""
+    """Обработка выбора пола (Универсальная: и для заполнения, и для редактирования)"""
     await callback.answer()
-    choice = callback.data.replace("gender_", "")
     state_data = await state.get_data()
-    profile_data = state_data.get('profile_data', {})
-    profile_data['gender'] = 'male' if choice == 'male' else 'female'
-    await state.update_data(profile_data=profile_data)
-    await callback.message.delete()
-    await callback.message.answer(
-        "🏰 <b>Город</b>\n\n"
-        "Введите ваш город (необязательно).\n"
-        "Или нажмите <b>⏭ Пропустить</b>.",
-        reply_markup=get_skip_keyboard()
-    )
-    await state.set_state(ProfileForm.waiting_for_city)
+    edit_mode = state_data.get('edit_mode', False)
+    choice = callback.data.replace("gender_", "")
+    gender_val = 'male' if choice == 'male' else 'female'
+    
+    if edit_mode:
+        # === РЕЖИМ РЕДАКТИРОВАНИЯ ===
+        logger.info(f"User {callback.from_user.id} editing gender to {gender_val}")
+        global profile_db
+        user_id = callback.from_user.id
+        username = callback.from_user.username or f"user_{user_id}"
+        
+        current_profile = profile_db.get_profile(user_id)
+        if not current_profile:
+            await callback.answer("❌ Профиль не найден", show_alert=True)
+            return
+        
+        current_profile['gender'] = gender_val
+        profile_db.save_profile(user_id, username, current_profile)
+        
+        gender_text = "Мужской" if gender_val == 'male' else "Женский"
+        try:
+            await callback.message.edit_text(
+                f"✅ Пол установлен: {gender_text}",
+                reply_markup=get_edit_profile_keyboard()
+            )
+        except TelegramBadRequest:
+            pass # Игнорируем ошибку, если сообщение не изменилось
+        await state.clear()
+    else:
+        # === РЕЖИМ ЗАПОЛНЕНИЯ ===
+        profile_data = state_data.get('profile_data', {})
+        profile_data['gender'] = gender_val
+        await state.update_data(profile_data=profile_data)
+        await callback.message.delete()
+        await callback.message.answer(
+            "🏰 <b>Город</b>\n\n"
+            "Введите ваш город (необязательно).\n"
+            "Или нажмите <b>⏭ Пропустить</b>.",
+            reply_markup=get_skip_keyboard()
+        )
+        await state.set_state(ProfileForm.waiting_for_city)
 
 @router.message(ProfileForm.waiting_for_city)
 async def process_city(message: Message, state: FSMContext):
@@ -256,7 +287,6 @@ async def process_city(message: Message, state: FSMContext):
             username = message.from_user.username or f"user_{user_id}"
             current_profile = profile_db.get_profile(user_id)
             if current_profile:
-                # Обновляем только город и таймзону, остальное оставляем как есть
                 current_profile['city'] = None
                 current_profile['region'] = None
                 current_profile['timezone'] = 'Europe/Moscow'
@@ -363,7 +393,10 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
                 current_profile['region'] = None
                 current_profile['timezone'] = 'Europe/Moscow'
                 profile_db.save_profile(user_id, username, current_profile)
-            await callback.message.edit_text("✅ Город сброшен.", reply_markup=get_edit_profile_keyboard())
+            try:
+                await callback.message.edit_text("✅ Город сброшен.", reply_markup=get_edit_profile_keyboard())
+            except TelegramBadRequest:
+                pass
             await state.clear()
             return
         
@@ -401,10 +434,13 @@ async def city_choice_callback(callback: CallbackQuery, state: FSMContext):
                     current_profile['timezone'] = selected_city['timezone']['tzid']
                     profile_db.save_profile(user_id, username, current_profile)
                 
-                await callback.message.edit_text(
-                    f"✅ Город обновлен: {selected_city['name']}", 
-                    reply_markup=get_edit_profile_keyboard()
-                )
+                try:
+                    await callback.message.edit_text(
+                        f"✅ Город обновлен: {selected_city['name']}", 
+                        reply_markup=get_edit_profile_keyboard()
+                    )
+                except TelegramBadRequest:
+                    pass
                 await state.clear()
             else:
                 # РЕЖИМ ЗАПОЛНЕНИЯ
@@ -543,101 +579,67 @@ async def profile_view(callback: CallbackQuery):
 async def profile_edit(callback: CallbackQuery, state: FSMContext):
     """Редактирование профиля"""
     await callback.answer()
-    await callback.message.edit_text(
-        "✏️ <b>Редактирование профиля</b>\n\n"
-        "Что хотите изменить?",
-        reply_markup=get_edit_profile_keyboard()
-    )
+    # Устанавливаем флаг редактирования
+    await state.update_data(edit_mode=True)
+    try:
+        await callback.message.edit_text(
+            "✏️ <b>Редактирование профиля</b>\n\n"
+            "Что хотите изменить?",
+            reply_markup=get_edit_profile_keyboard()
+        )
+    except TelegramBadRequest:
+        pass
 
 @router.callback_query(F.data.startswith("edit_"))
 async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
     """Выбор поля для редактирования"""
     await callback.answer()
-    global profile_db
     field = callback.data.replace("edit_", "")
     
-    # Устанавливаем флаг режима редактирования
+    # Флаг уже установлен в profile_edit, но продублируем для надежности
     await state.update_data(edit_mode=True)
 
     if field == "name":
-        await callback.message.edit_text("✏️ <b>Редактирование имени</b>\n\nВведите новое имя или ФИО:")
+        try:
+            await callback.message.edit_text("✏️ <b>Редактирование имени</b>\n\nВведите новое имя или ФИО:")
+        except TelegramBadRequest:
+            pass
         await callback.message.answer("📝 Введите новое имя:", reply_markup=get_back_keyboard())
         await state.set_state(ProfileForm.waiting_for_name)
     elif field == "city":
-        await callback.message.edit_text("🏰 <b>Редактирование города</b>\n\nВведите ваш город:")
+        try:
+            await callback.message.edit_text("🏰 <b>Редактирование города</b>\n\nВведите ваш город:")
+        except TelegramBadRequest:
+            pass
         await callback.message.answer("📝 Введите новый город:", reply_markup=get_back_keyboard())
         await state.set_state(ProfileForm.waiting_for_city)
     elif field == "gender":
         logger.info(f"User {callback.from_user.id} clicked Edit Gender")
+        # Для пола мы не меняем состояние FSM, а просто показываем кнопки.
+        # Обработка произойдет в gender_choice_callback, который проверит флаг edit_mode.
         try:
             markup = InlineKeyboardMarkup(inline_keyboard=[
-                [InlineKeyboardButton(text="Мужской", callback_data="set_gender_male"),
-                 InlineKeyboardButton(text="Женский", callback_data="set_gender_female")],
+                [InlineKeyboardButton(text="Мужской", callback_data="gender_male"),
+                 InlineKeyboardButton(text="Женский", callback_data="gender_female")],
                 [InlineKeyboardButton(text="❌ Отмена", callback_data="profile_edit")]
             ])
             await callback.message.edit_text("👤 <b>Выберите пол:</b>", reply_markup=markup)
-        except TelegramBadRequest as e:
-            if "message is not modified" in str(e):
-                pass # Игнорируем, если контент не изменился
-            else:
-                raise
+        except TelegramBadRequest:
+            pass
     elif field == "birthday":
-        await callback.message.edit_text("📅 <b>Редактирование даты рождения</b>\n\nВведите новую дату (ДДММ или ДД.ММ.ГГГГ):")
+        try:
+            await callback.message.edit_text("📅 <b>Редактирование даты рождения</b>\n\nВведите новую дату (ДДММ или ДД.ММ.ГГГГ):")
+        except TelegramBadRequest:
+            pass
         await callback.message.answer("📝 Введите новую дату:", reply_markup=get_back_keyboard())
         await state.set_state(ProfileForm.waiting_for_birthday)
     elif field == "back":
         await profile_view(callback)
 
-@router.callback_query(F.data.startswith("set_gender_"))
-async def process_set_gender(callback: CallbackQuery, state: FSMContext):
-    """Обработка выбора пола при редактировании"""
-    try:
-        logger.info(f"User {callback.from_user.id} selected gender: {callback.data}")
-        await callback.answer()
-        global profile_db
-        
-        if profile_db is None:
-            await callback.answer("❌ Ошибка БД", show_alert=True)
-            return
-
-        gender = 'male' if 'male' in callback.data else 'female'
-        user_id = callback.from_user.id
-        username = callback.from_user.username or f"user_{user_id}"
-        
-        # Получаем текущий профиль
-        current_profile = profile_db.get_profile(user_id)
-        if not current_profile:
-            await callback.answer("❌ Профиль не найден", show_alert=True)
-            return
-        
-        # Обновляем поле gender
-        current_profile['gender'] = gender
-        
-        # Сохраняем
-        save_result = profile_db.save_profile(user_id, username, current_profile)
-        if not save_result:
-            logger.error("Failed to save profile gender")
-            await callback.answer("❌ Ошибка сохранения", show_alert=True)
-            return
-        
-        logger.info(f"Gender saved successfully for user {user_id}")
-        
-        # Возвращаемся в меню редактирования
-        await callback.message.edit_text(
-            f"✅ Пол установлен: {'Мужской' if gender == 'male' else 'Женский'}",
-            reply_markup=get_edit_profile_keyboard()
-        )
-    except TelegramBadRequest as e:
-        if "message is not modified" in str(e):
-            # Если сообщение не изменилось, просто меняем клавиатуру или игнорируем
-            pass
-        else:
-            logger.error(f"Telegram error: {e}")
-            await callback.answer("Ошибка обновления", show_alert=True)
-    except Exception as e:
-        logger.error(f"Error in process_set_gender: {e}", exc_info=True)
-        await callback.answer(f"❌ Ошибка: {e}", show_alert=True)
-
+# Этот обработчик больше не нужен, так как логика перенесена в gender_choice_callback
+# Но оставим его пустым или удалим, чтобы не было конфликтов. 
+# Лучше удалить, чтобы не дублировалось.
+# @router.callback_query(F.data.startswith("set_gender_")) ... <- УДАЛЕНО
 
 @router.callback_query(F.data == "profile_accounts")
 async def profile_accounts(callback: CallbackQuery, state: FSMContext):
