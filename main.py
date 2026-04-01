@@ -112,10 +112,7 @@ try:
     from keyboards.profile import (
         get_profile_menu_keyboard, get_edit_profile_keyboard,
         get_city_choice_keyboard, get_skip_keyboard, get_back_keyboard,
-        get_accounts_management_keyboard, get_link_account_keyboard,
-        get_confirm_unlink_keyboard, get_unlink_success_keyboard,
-        get_no_accounts_to_link_keyboard
-    )
+        )
     _check_subscription_func = None
     import aiogram
     if aiogram.__version__.startswith('3'):
