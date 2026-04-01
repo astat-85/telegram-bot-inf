@@ -458,6 +458,7 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
         await state.set_state(ProfileForm.waiting_for_city)
         await state.update_data(edit_mode=True)
     elif field == "gender":
+        logger.info(f"User {callback.from_user.id} clicked Edit Gender")
         markup = InlineKeyboardMarkup(row_width=2)
         markup.add(
             InlineKeyboardButton("Мужской", callback_data="set_gender_male"),
@@ -478,29 +479,44 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("set_gender_"))
 async def process_set_gender(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора пола при редактировании"""
-    await callback.answer()
-    global profile_db
-    
-    gender = 'male' if 'male' in callback.data else 'female'
-    user_id = callback.from_user.id
-    username = callback.from_user.username or f"user_{user_id}"
-    
-    # Получаем текущий профиль
-    current_profile = profile_db.get_profile(user_id)
-    if not current_profile:
-        await callback.message.edit_text("❌ Профиль не найден")
-        return
-    
-    # Обновляем поле gender
-    current_profile['gender'] = gender
-    
-    # Сохраняем
-    profile_db.save_profile(user_id, username, current_profile)
-    
-    await callback.message.edit_text(
-        f"✅ Пол установлен: {'Мужской' if gender == 'male' else 'Женский'}",
-        reply_markup=get_edit_profile_keyboard() # Возвращаем меню редактирования
-    )
+    try:
+        logger.info(f"User {callback.from_user.id} selected gender: {callback.data}")
+        await callback.answer()
+        global profile_db
+        
+        if profile_db is None:
+            await callback.answer("❌ Ошибка БД", show_alert=True)
+            return
+
+        gender = 'male' if 'male' in callback.data else 'female'
+        user_id = callback.from_user.id
+        username = callback.from_user.username or f"user_{user_id}"
+        
+        # Получаем текущий профиль
+        current_profile = profile_db.get_profile(user_id)
+        if not current_profile:
+            await callback.answer("❌ Профиль не найден", show_alert=True)
+            return
+        
+        # Обновляем поле gender
+        current_profile['gender'] = gender
+        
+        # Сохраняем
+        save_result = profile_db.save_profile(user_id, username, current_profile)
+        if not save_result:
+            logger.error("Failed to save profile gender")
+            await callback.answer("❌ Ошибка сохранения", show_alert=True)
+            return
+        
+        logger.info(f"Gender saved successfully for user {user_id}")
+        
+        await callback.message.edit_text(
+            f"✅ Пол установлен: {'Мужской' if gender == 'male' else 'Женский'}",
+            reply_markup=get_edit_profile_keyboard()
+        )
+    except Exception as e:
+        logger.error(f"Error in process_set_gender: {e}", exc_info=True)
+        await callback.answer(f"❌ Ошибка: {e}", show_alert=True)
 
 
 @router.callback_query(F.data == "profile_accounts")
