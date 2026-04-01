@@ -465,8 +465,6 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
             [InlineKeyboardButton(text="❌ Отмена", callback_data="profile_edit")]
         ])
         await callback.message.edit_text("👤 <b>Выберите пол:</b>", reply_markup=markup)
-        
-        await callback.message.edit_text("👤 <b>Выберите пол:</b>", reply_markup=markup)
         # Состояние не меняем, так как выбор мгновенный через callback
     elif field == "birthday":
         await callback.message.edit_text("📅 <b>Редактирование даты рождения</b>\n\n" "Введите новую дату:")
