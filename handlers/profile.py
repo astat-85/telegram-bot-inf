@@ -459,12 +459,16 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
         await state.update_data(edit_mode=True)
     elif field == "gender":
         logger.info(f"User {callback.from_user.id} clicked Edit Gender")
-        markup = InlineKeyboardMarkup(inline_keyboard=)
-        markup.add(
-            InlineKeyboardButton("Мужской", callback_data="set_gender_male"),
-            InlineKeyboardButton("Женский", callback_data="set_gender_female")
+        markup = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="Мужской", callback_data="set_gender_male"),
+                    InlineKeyboardButton(text="Женский", callback_data="set_gender_female")
+                ],
+                [InlineKeyboardButton(text="❌ Отмена", callback_data="profile_edit")]
+            ]
         )
-        markup.add(InlineKeyboardButton("❌ Отмена", callback_data="profile_edit"))
+        await callback.message.edit_text("👤 <b>Выберите пол:</b>", reply_markup=markup)
         
         await callback.message.edit_text("👤 <b>Выберите пол:</b>", reply_markup=markup)
         # Состояние не меняем, так как выбор мгновенный через callback
