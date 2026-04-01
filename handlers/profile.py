@@ -459,7 +459,7 @@ async def edit_field_choice(callback: CallbackQuery, state: FSMContext):
         await state.update_data(edit_mode=True)
     elif field == "gender":
         logger.info(f"User {callback.from_user.id} clicked Edit Gender")
-        markup = InlineKeyboardMarkup(row_width=2)
+        markup = InlineKeyboardMarkup(inline_keyboard=[
         markup.add(
             InlineKeyboardButton("Мужской", callback_data="set_gender_male"),
             InlineKeyboardButton("Женский", callback_data="set_gender_female")
