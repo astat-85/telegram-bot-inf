@@ -35,7 +35,6 @@ class ProfileForm(StatesGroup):
     waiting_for_gender_choice = State()
     waiting_for_city = State()
     waiting_for_birthday = State()
-    waiting_for_confirm = State()
 
 # Роутер для профиля
 router = Router()
@@ -236,7 +235,6 @@ async def process_city(message: Message, state: FSMContext):
         data = await state.get_data()
         profile_data = data.get('profile_data', {})
         
-        # Если режим редактирования - сохраняем сразу и выходим
         if edit_mode:
             global profile_db
             user_id = message.from_user.id
@@ -253,7 +251,6 @@ async def process_city(message: Message, state: FSMContext):
             await state.clear()
             return
 
-        # Логика первичного заполнения
         profile_data['timezone'] = 'Europe/Moscow'
         profile_data['location_manually_set'] = False
         await state.update_data(profile_data=profile_data)
@@ -585,6 +582,7 @@ async def process_set_gender(callback: CallbackQuery, state: FSMContext):
             return
         
         current_profile['gender'] = gender
+        
         save_result = profile_db.save_profile(user_id, username, current_profile)
         if not save_result:
             logger.error("Failed to save profile gender")
