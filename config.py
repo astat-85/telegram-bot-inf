@@ -1,0 +1,45 @@
+"""
+Конфигурация отображения полей аккаунта
+Изменяйте названия и иконки здесь, чтобы они менялись везде (бот, экспорт)
+"""
+
+# Словарь конфигурации полей
+# Структура: 'техническое_имя': {'name': 'Отображаемое имя', 'icon': 'Иконка'}
+# Если 'name' равен None — поле скрыто из интерфейса
+FIELD_CONFIG = {
+    'power': {'name': 'Сила', 'icon': '💪'},
+    'bm': {'name': 'Боевая мощь', 'icon': '⚔️'},
+    'pl1': {'name': 'Политика 1', 'icon': '📜'},
+    'pl2': {'name': 'Политика 2', 'icon': '📜'},
+    'pl3': {'name': 'Политика 3', 'icon': '📜'},
+    
+    # Изменено: Дракон -> Маяк с новой иконкой
+    'dragon': {'name': 'Маяк', 'icon': '🗼'},
+    
+    'buffs_stands': {'name': 'Баф стройки', 'icon': '🏗️'},
+    'buffs_research': {'name': 'Баф исследования', 'icon': '🔬'},
+    
+    # Новое поле (скрыто, пока не зададите name)
+    'acceleration_buff': {'name': None, 'icon': '⚡'}, 
+}
+
+def get_field_label(key: str) -> str:
+    """
+    Возвращает строку: "Иконка Название" (например, "🗼 Маяк").
+    Если поле скрыто (name is None), возвращает None.
+    """
+    cfg = FIELD_CONFIG.get(key)
+    if not cfg or cfg.get('name') is None:
+        return None
+    return f"{cfg['icon']} {cfg['name']}"
+
+def get_field_name_only(key: str) -> str:
+    """Возвращает только название без иконки (для заголовков Excel)"""
+    cfg = FIELD_CONFIG.get(key)
+    if not cfg or cfg.get('name') is None:
+        return None
+    return cfg['name']
+
+def get_visible_fields() -> list:
+    """Возвращает список технических имен видимых полей"""
+    return [key for key, val in FIELD_CONFIG.items() if val.get('name') is not None]
