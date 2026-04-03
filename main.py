@@ -1434,7 +1434,13 @@ async def admin_table(callback: CallbackQuery):
     except: page = 1
     accounts = db.get_all_accounts()
     if not accounts:
-        await callback.message.edit_text("📋 Нет данных", reply_markup=get_admin_kb())
+        try:
+            await callback.message.edit_text("📋 Нет данных", reply_markup=get_admin_kb())
+        except Exception as e:
+            if "message is not modified" in str(e):
+                await callback.answer()
+            else:
+                raise
         await callback.answer(); return
     per_page = ACCOUNTS_PER_PAGE
     total = (len(accounts) + per_page - 1) // per_page
