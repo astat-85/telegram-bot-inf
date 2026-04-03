@@ -1,0 +1,26 @@
+SQLite format 3@  .c
+Z
+w''-tableuser_profilesuser_profilesCREATE TABLE user_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE,
+    first_name TEXT DEFAULT '',
+    last_name TEXT DEFAULT '',
+    middle_name TEXT DEFAULT '',
+    city TEXT DEFAULT '',
+    region TEXT DEFAULT '',
+    timezone TEXT DEFAULT '',
+    birth_day INTEGER,
+    birth_month INTEGER,
+    birth_year INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+)9M'indexsqlite_autoindex_user_profiles_1user_profilesP++Ytablesqlite_sequencesqlite_sequenceCREATE TABLE sqlite_sequence(name,seq)ableusersusersCREATE TABLE users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
+    username TEXT, game_nickname TEXT NOT NULL,
+    power TEXT DEFAULT '', bm TEXT DEFAULT '',
+    pl1 TEXT DEFAULT '', pl2 TEXT DEFAULT '', pl3 TEXT DEFAULT '',
+    dragon TEXT DEFAULT '', buffs_stands TEXT DEFAULT '',
+    buffs_research TEXT DEFAULT '', acceleration_buff TEXT DEFAULT '',
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(user_id, game_nickname)))=indexsqlite_autoindex_users_1users
