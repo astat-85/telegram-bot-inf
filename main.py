@@ -24,6 +24,7 @@ from typing import Optional, Dict, Any, List, Union
 from functools import wraps
 from threading import RLock
 from collections import defaultdict
+from config import get_field_label, get_field_name_only, get_visible_fields
 
 # ========== НАСТРОЙКИ ДЛЯ СЕТИ ==========
 import aiohttp
