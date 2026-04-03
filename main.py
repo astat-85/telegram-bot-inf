@@ -28,7 +28,7 @@ from config import get_field_label, get_field_name_only, get_visible_fields
 
 # ========== НАСТРОЙКИ ДЛЯ СЕТИ ==========
 import aiohttp
-connector = aiohttp.TCPConnector(ssl=False, ttl_dns_cache=300, force_close=True)
+connector = None  # Будет создан внутри async функции
 timeout = aiohttp.ClientTimeout(total=30, connect=10, sock_connect=10, sock_read=10)
 
 # ========== ПУТИ ==========
@@ -112,10 +112,7 @@ try:
     from cities.city_db import CityDatabase
     from keyboards.profile import (
         get_profile_menu_keyboard, get_edit_profile_keyboard,
-        get_city_choice_keyboard, get_skip_keyboard, get_back_keyboard,
-        get_accounts_management_keyboard, get_link_account_keyboard,
-        get_confirm_unlink_keyboard, get_unlink_success_keyboard,
-        get_no_accounts_to_link_keyboard
+        get_city_choice_keyboard, get_skip_keyboard, get_back_keyboard
     )
     _check_subscription_func = None
     import aiogram
