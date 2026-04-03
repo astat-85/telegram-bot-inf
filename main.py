@@ -410,6 +410,17 @@ class Database:
             logger.error(f"Ошибка обновления активности: {e}")
             return False
 
+    def check_integrity(self) -> bool:
+        """Проверка целостности базы данных"""
+        if not self.conn: self._connect()
+        try:
+            self._execute("PRAGMA integrity_check")
+            result = self.cursor.fetchone()
+            return result and result[0] == "ok"
+        except Exception as e:
+            logger.error(f"Ошибка проверки целостности БД: {e}")
+            return False
+
     def create_backup(self, filename: str = None) -> Optional[str]:
         if not self.conn: self._connect()
         try:
