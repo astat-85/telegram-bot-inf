@@ -112,7 +112,10 @@ try:
     from keyboards.profile import (
         get_profile_menu_keyboard, get_edit_profile_keyboard,
         get_city_choice_keyboard, get_skip_keyboard, get_back_keyboard,
-        )
+        get_accounts_management_keyboard, get_link_account_keyboard,
+        get_confirm_unlink_keyboard, get_unlink_success_keyboard,
+        get_no_accounts_to_link_keyboard
+    )
     _check_subscription_func = None
     import aiogram
     if aiogram.__version__.startswith('3'):
@@ -135,21 +138,15 @@ try:
 except ImportError:
     PSUTIL_AVAILABLE = False
 
-# ========== НАСТРОЙКИ ==========
-FIELDS = {
-    "nick": "👤 Ник", "power": "⚡️ Эл/ст", "bm": "⚔️ БМ",
-    "pl1": "📍 1пл", "pl2": "📍 2пл", "pl3": "📍 3пл",
-    "dragon": "🐉 Дракон", "stands": "🏗️ БС", "research": "🔬 БИ"
-}
-FIELD_FULL_NAMES = {
-    "nick": "Ник в игре", "power": "Электростанция", "bm": "БМ",
-    "pl1": "1 плацдарм", "pl2": "2 плацдарм", "pl3": "3 плацдарм",
-    "dragon": "Дракон", "stands": "Баф стройки", "research": "Баф исследования"
-}
+# ========== КОНФИГУРАЦИЯ ==========
+from config import get_field_label, get_field_name_only, get_visible_fields
+
+# Старые словари для обратной совместимости (будут заменены на config)
 FIELD_DB_MAP = {
     "nick": "game_nickname", "power": "power", "bm": "bm",
     "pl1": "pl1", "pl2": "pl2", "pl3": "pl3",
-    "dragon": "dragon", "stands": "buffs_stands", "research": "buffs_research"
+    "dragon": "dragon", "stands": "buffs_stands", "research": "buffs_research",
+    "acceleration_buff": "acceleration_buff"  # Новое поле
 }
 VALID_DB_FIELDS = set(FIELD_DB_MAP.values()) | {"username"}
 MAX_POWER_DRAGON, MAX_BM_PL, MAX_BUFF = 99, 999.9, 9
@@ -162,7 +159,7 @@ cancel_restore, background_tasks_started = False, False
 class RateLimiter:
     def __init__(self):
         self.requests = defaultdict(list)
-    
+
     def is_limited(self, user_id: int, is_admin: bool = False) -> bool:
         now = datetime.now()
         limit = RATE_LIMIT_ADMIN if is_admin else RATE_LIMIT_USER
@@ -204,14 +201,14 @@ class Database:
         self.conn, self.cursor = None, None
         if self.db_path.exists():
             self._connect()
-    
+
     def _connect(self):
         self.conn = sqlite3.connect(str(self.db_path), check_same_thread=False, timeout=10)
         self.conn.row_factory = sqlite3.Row
         self.cursor = self.conn.cursor()
         self._optimize()
         self._create_tables()
-    
+
     def _optimize(self):
         try:
             for pragma in ["PRAGMA journal_mode=WAL", "PRAGMA synchronous=NORMAL",
@@ -220,7 +217,7 @@ class Database:
             self.conn.commit()
         except Exception as e:
             logger.error(f"Ошибка оптимизации БД: {e}")
-    
+
     def _create_tables(self):
         self._execute('''CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL,
@@ -228,7 +225,7 @@ class Database:
             power TEXT DEFAULT '', bm TEXT DEFAULT '',
             pl1 TEXT DEFAULT '', pl2 TEXT DEFAULT '', pl3 TEXT DEFAULT '',
             dragon TEXT DEFAULT '', buffs_stands TEXT DEFAULT '',
-            buffs_research TEXT DEFAULT '',
+            buffs_research TEXT DEFAULT '', acceleration_buff TEXT DEFAULT '',
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(user_id, game_nickname))''')
@@ -238,7 +235,7 @@ class Database:
             try: self._execute(idx)
             except: pass
         self.conn.commit()
-    
+
     def _execute(self, query: str, params: tuple = None):
         with self.lock:
             try:
@@ -248,15 +245,15 @@ class Database:
             except Exception as e:
                 logger.error(f"SQL Error: {e}\nQuery: {query}")
                 raise
-    
+
     def _validate_field(self, field: str) -> bool:
         return field in VALID_DB_FIELDS
-    
+
     def invalidate_cache(self):
         with self.cache_lock:
             self.stats_cache, self.user_cache = {}, {}
             self.last_cache_update = 0
-    
+
     def get_user_accounts_cached(self, user_id: int) -> List[Dict]:
         if not self.conn: self._connect()
         cache_key = f"user_{user_id}"
@@ -268,19 +265,19 @@ class Database:
             data = self.get_user_accounts(user_id)
             self.user_cache[cache_key] = (time.time(), [dict(item) for item in data] if data else [])
             return data
-    
+
     @retry_on_db_lock()
     def get_user_accounts(self, user_id: int) -> List[Dict]:
         if not self.conn: self._connect()
         try:
             self._execute("""SELECT id, game_nickname, power, bm, pl1, pl2, pl3,
-                dragon, buffs_stands, buffs_research, updated_at
+                dragon, buffs_stands, buffs_research, acceleration_buff, updated_at
                 FROM users WHERE user_id = ? ORDER BY updated_at DESC""", (user_id,))
             return [dict(row) for row in self.cursor.fetchall()]
         except Exception as e:
             logger.error(f"Ошибка get_user_accounts: {e}")
             return []
-    
+
     @retry_on_db_lock()
     def get_account_by_id(self, account_id: int) -> Optional[Dict]:
         if not self.conn: self._connect()
@@ -291,7 +288,7 @@ class Database:
         except Exception as e:
             logger.error(f"Ошибка get_account_by_id: {e}")
             return None
-    
+
     def is_nickname_taken(self, user_id: int, nickname: str, exclude_id: int = None) -> bool:
         if not self.conn: self._connect()
         try:
@@ -306,7 +303,7 @@ class Database:
         except Exception as e:
             logger.error(f"Ошибка is_nickname_taken: {e}")
             return False
-    
+
     @retry_on_db_lock()
     def create_or_update_account(self, user_id: int, username: str,
                                    game_nickname: str, field_key: str = None,
@@ -351,7 +348,7 @@ class Database:
         except Exception as e:
             logger.error(f"Ошибка create_or_update_account: {e}")
             return None
-    
+
     @retry_on_db_lock()
     def delete_account(self, account_id: int) -> bool:
         if not self.conn: self._connect()
@@ -363,14 +360,15 @@ class Database:
         except Exception as e:
             logger.error(f"Ошибка delete_account: {e}")
             return False
-    
+
     @retry_on_db_lock()
     def get_all_accounts(self) -> List[Dict]:
         if not self.conn: self._connect()
         try:
             self._execute("""SELECT u.id, u.user_id, u.username, u.game_nickname,
                 u.power, u.bm, u.pl1, u.pl2, u.pl3, u.dragon,
-                u.buffs_stands, u.buffs_research, u.created_at, u.updated_at,
+                u.buffs_stands, u.buffs_research, u.acceleration_buff,
+                u.created_at, u.updated_at,
                 p.first_name, p.last_name, p.middle_name, p.city, p.region,
                 p.timezone, p.birth_day, p.birth_month, p.birth_year
                 FROM users u LEFT JOIN user_profiles p ON u.user_id = p.user_id
@@ -379,7 +377,7 @@ class Database:
         except Exception as e:
             logger.error(f"Ошибка get_all_accounts: {e}")
             return []
-    
+
     def get_stats(self) -> Dict[str, Any]:
         if not self.conn: self._connect()
         now = time.time()
@@ -403,7 +401,7 @@ class Database:
         except Exception as e:
             logger.error(f"Ошибка get_stats: {e}")
             return {"unique_users": 0, "total_accounts": 0, "avg_accounts_per_user": 0}
-    
+
     def update_user_last_active(self, user_id: int) -> bool:
         if not self.conn: self._connect()
         try:
@@ -413,7 +411,7 @@ class Database:
         except Exception as e:
             logger.error(f"Ошибка обновления активности: {e}")
             return False
-    
+
     def create_backup(self, filename: str = None) -> Optional[str]:
         if not self.conn: self._connect()
         try:
@@ -435,7 +433,7 @@ class Database:
         except Exception as e:
             logger.error(f"❌ Ошибка создания бэкапа: {e}")
             return None
-    
+
     def export_to_csv(self, filename: str = None) -> Optional[str]:
         if not self.conn: self._connect()
         try:
@@ -445,20 +443,30 @@ class Database:
             filepath = EXPORT_DIR / filename
             accounts = self.get_all_accounts()
             if not accounts: return None
+
+            # Формируем заголовки и данные динамически на основе видимых полей
+            visible = get_visible_fields()
+            headers = ["№", "Ник"]
+            for key in visible:
+                name = get_field_label(key)
+                if name:
+                    headers.append(name)
+
             with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
                 writer = csv.writer(f, delimiter=';')
-                writer.writerow(["№", "Ник", "Эл", "БМ", "Пл1", "Пл2", "Пл3", "Др", "БС", "БИ"])
+                writer.writerow(headers)
                 for i, acc in enumerate(accounts, 1):
-                    writer.writerow([i, acc.get('game_nickname', ''), acc.get('power', ''),
-                        acc.get('bm', ''), acc.get('pl1', ''), acc.get('pl2', ''),
-                        acc.get('pl3', ''), acc.get('dragon', ''),
-                        acc.get('buffs_stands', ''), acc.get('buffs_research', '')])
+                    row = [i, acc.get('game_nickname', '')]
+                    for key in visible:
+                        db_key = FIELD_DB_MAP.get(key, key)
+                        row.append(acc.get(db_key, ''))
+                    writer.writerow(row)
             logger.info(f"✅ Экспорт CSV: {filepath}")
             return str(filepath)
         except Exception as e:
             logger.error(f"❌ Ошибка экспорта CSV: {e}")
             return None
-    
+
     def export_to_excel(self, filename: str = None) -> Optional[str]:
         if not self.conn: self._connect()
         try:
@@ -511,7 +519,7 @@ class Database:
         except Exception as e:
             logger.error(f"❌ Ошибка экспорта в Excel: {e}")
             return None
-    
+
     def close(self):
         try:
             with self.lock:
@@ -637,8 +645,13 @@ def get_db_management_kb() -> InlineKeyboardMarkup:
     ])
 
 def get_edit_fields_kb(account_id: int) -> InlineKeyboardMarkup:
-    buttons = [[InlineKeyboardButton(text=name, callback_data=f"field_{account_id}_{key}")]
-               for key, name in FIELD_FULL_NAMES.items() if key != "nick"]
+    buttons = []
+    for key in get_visible_fields():
+        if key == "nick":
+            continue
+        name = get_field_label(key)
+        if name:
+            buttons.append([InlineKeyboardButton(text=name, callback_data=f"field_{account_id}_{key}")])
     buttons.append([InlineKeyboardButton(text="⬅️ Назад", callback_data=f"select_{account_id}")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
 
@@ -679,10 +692,33 @@ def format_accounts_table(accounts: List[Dict], start: int = 0) -> str:
     for i, acc in enumerate(accounts, start + 1):
         nick = html.escape((acc.get('game_nickname') or '—')[:20])
         text += f"{i:2d}. {nick}\n"
-        text += f"  ⚡️{format_power(acc.get('power','—'))} ⚔️{format_bm(acc.get('bm','—'))} "
-        text += f"📍1-{format_pl(acc.get('pl1','—'))} 📍2-{format_pl(acc.get('pl2','—'))} "
-        text += f"📍3-{format_pl(acc.get('pl3','—'))} 🐉{format_dragon(acc.get('dragon','—'))} "
-        text += f"🏗️{format_buff(acc.get('buffs_stands','—'))} 🔬{format_buff(acc.get('buffs_research','—'))}\n"
+
+        # Динамическое формирование строки на основе видимых полей
+        line_parts = []
+        visible = get_visible_fields()
+
+        for field_key in visible:
+            label = get_field_label(field_key)
+            if not label:
+                continue
+
+            value = acc.get(field_key, '—')
+            if value is None or value == '':
+                value = '—'
+
+            # Форматирование значения в зависимости от типа поля
+            if field_key == 'power':
+                formatted_val = format_power(value)
+            elif field_key == 'bm':
+                formatted_val = format_bm(value)
+            elif field_key in ['pl1', 'pl2', 'pl3']:
+                formatted_val = format_pl(value)
+            else:
+                formatted_val = format_buff(value) if 'buff' in field_key or field_key == 'dragon' else value
+
+            line_parts.append(f"{label} {formatted_val}")
+
+        text += " ".join(line_parts) + "\n"
     text += "</code>"
     return text
 
@@ -690,9 +726,14 @@ def format_account_data(acc: Dict) -> str:
     if not acc: return "❌ Аккаунт не найден"
     nick = acc.get('game_nickname', 'Без имени')
     text = f"<b>📋 Аккаунт: {html.escape(nick)}</b>\n"
-    for key, name in FIELD_FULL_NAMES.items():
-        val = acc.get(FIELD_DB_MAP.get(key, key), '')
-        text += f"<b>{name}:</b> {html.escape(str(val)) if val else '—'}\n"
+    for key in get_visible_fields():
+        label = get_field_label(key)
+        if not label:
+            continue
+        # Получаем техническое имя поля из БД (если нужно маппирование)
+        db_key = FIELD_DB_MAP.get(key, key)
+        val = acc.get(db_key, '')
+        text += f"<b>{label}:</b> {html.escape(str(val)) if val else '—'}\n"
     return text
 
 # ========== ВАЛИДАЦИЯ ==========
@@ -819,7 +860,7 @@ async def step_start(callback: CallbackQuery, state: FSMContext):
     account = db.get_account_by_id(account_id)
     if not account:
         await callback.answer("❌ Аккаунт не найден", show_alert=True); return
-    steps = [k for k in FIELD_FULL_NAMES if k != "nick"]
+    steps = [k for k in get_visible_fields() if k != "nick"]
     await callback.message.edit_text(f"🔄 <b>ПОШАГОВОЕ ЗАПОЛНЕНИЕ</b>\n👤 {account['game_nickname']}\n📊 {len(steps)} полей")
     await state.update_data(step_account=account_id, step_index=0, step_steps=steps, step_data={}, step_temp="")
     await step_next(callback.message, state)
@@ -835,14 +876,14 @@ async def step_next(msg_or_cb, state: FSMContext):
     field = steps[idx]
     account = db.get_account_by_id(account_id)
     if not account: await state.clear(); return
-    name = FIELD_FULL_NAMES.get(field, field)
+    name = get_field_label(field) or field
     current = account.get(FIELD_DB_MAP.get(field, field), '')
     text = f"🔄 <b>ШАГ {idx+1} ИЗ {len(steps)}</b>\n👤 {account['game_nickname']}\n📌 {name}\n💾 Текущее: {current or '—'}"
     if isinstance(msg_or_cb, Message): await msg_or_cb.answer(text)
     else: await msg_or_cb.message.edit_text(text)
     if field in ["bm", "pl1", "pl2", "pl3"]:
         kb, prompt = get_numeric_kb(decimal=True), f"📝 Введите число для «{name}» (можно с запятой):"
-    elif field in ["power", "dragon", "stands", "research"]:
+    elif field in ["power", "dragon", "stands", "research", "acceleration_buff"]:
         kb, prompt = get_numeric_kb(decimal=False), f"📝 Введите целое число для «{name}»:"
     else:
         kb, prompt = get_cancel_kb(), f"📝 Введите значение:"
@@ -856,8 +897,8 @@ async def step_input(message: Message, state: FSMContext):
     field = data.get("step_field")
     step_data = data.get("step_data", {})
     step_temp = data.get("step_temp", "")
-    field_name = FIELD_FULL_NAMES.get(field, field)
-    
+    field_name = get_field_label(field) or field
+
     if message.text == "🚫 Отмена":
         await message.answer("❌ Отменено", reply_markup=get_main_kb(message.from_user.id))
         await state.clear(); return
@@ -867,10 +908,10 @@ async def step_input(message: Message, state: FSMContext):
         await message.answer(f"⏭ Поле «{field_name}» пропущено")
         await state.update_data(step_index=data.get("step_index", 0) + 1, step_temp="")
         await step_next(message, state); return
-    
+
     # ===== ПРОВЕРКА: КНОПКА ИЛИ КЛАВИАТУРА? =====
     is_single_char = len(message.text) == 1 and message.text in ["0","1","2","3","4","5","6","7","8","9",",","⌫"]
-    
+
     if is_single_char:
         # ===== РЕЖИМ КНОПОК =====
         if message.text in ["0","1","2","3","4","5","6","7","8","9"]:
@@ -904,7 +945,7 @@ async def step_input(message: Message, state: FSMContext):
         print(f"⌨️ Ручной ввод: '{value}'")
         if not value:
             await message.answer("❌ Значение не может быть пустым"); return
-    
+
     # ===== ВАЛИДАЦИЯ =====
     if field in ["power","bm","dragon","stands","research","pl1","pl2","pl3"]:
         value = value.replace('.', ',')
@@ -913,7 +954,7 @@ async def step_input(message: Message, state: FSMContext):
             kb = get_numeric_kb(decimal=True) if field in ["bm","pl1","pl2","pl3"] else get_numeric_kb(decimal=False)
             await message.answer(error_msg, reply_markup=kb); return
         value = cleaned_value
-    
+
     # ===== СОХРАНЕНИЕ И ПЕРЕХОД =====
     step_data[field] = value
     await message.answer(f"✅ {field_name}: {value}")
@@ -932,7 +973,7 @@ async def step_finish(msg_or_cb, state: FSMContext, early=False):
     for field, value in step_data.items():
         if value and value.strip():
             db.create_or_update_account(user_id, username, account['game_nickname'], field, value)
-            updated.append(FIELD_FULL_NAMES.get(field, field))
+            updated.append(get_field_label(field) or field)
     text = "🏁 <b>ПРЕРВАНО</b>" if early else "✅ <b>ЗАВЕРШЕНО!</b>"
     text += f"\n👤 {account['game_nickname']}\n📊 Обновлено: {len(updated)}"
     if isinstance(msg_or_cb, Message):
@@ -951,19 +992,19 @@ async def process_input(message: Message, state: FSMContext):
     field = data.get("field")
     new = data.get("new", False)
     account_id = data.get("account_id")
-    
+
     if message.text in ["🚫 Отмена", "🏁 Завершить", "⏭ Пропустить"]:
         if message.text == "🚫 Отмена" or message.text == "🏁 Завершить":
             await message.answer("❌ Отменено" if message.text == "🚫 Отмена" else "🏁 Завершено",
                                reply_markup=get_main_kb(user_id))
         else:
-            await message.answer(f"⏭ Поле «{FIELD_FULL_NAMES.get(field, field)}» пропущено",
+            await message.answer(f"⏭ Поле «{get_field_label(field) or field}» пропущено",
                                reply_markup=get_main_kb(user_id))
         await state.clear(); return
-    
+
     value = message.text.strip()
-    field_name = FIELD_FULL_NAMES.get(field, field)
-    
+    field_name = get_field_label(field) or field
+
     if field == "nick":
         if not value or len(value) < MIN_NICK_LENGTH or len(value) > MAX_NICK_LENGTH:
             await message.answer(f"❌ Ник должен быть от {MIN_NICK_LENGTH} до {MAX_NICK_LENGTH} символов",
@@ -981,7 +1022,7 @@ async def process_input(message: Message, state: FSMContext):
                 db.create_or_update_account(user_id, username, acc['game_nickname'], "nick", value)
                 await message.answer(f"✅ Ник изменен: {value}", reply_markup=get_main_kb(user_id))
                 await state.clear(); return
-    
+
     if field in ["power","bm","dragon","stands","research","pl1","pl2","pl3"]:
         value = value.replace('.', ',')
         success, error_msg, cleaned_value = validate_numeric_input(field, value)
@@ -1109,7 +1150,7 @@ async def edit_field(callback: CallbackQuery, state: FSMContext):
     if not account: await callback.answer("❌ Аккаунт не найден", show_alert=True); return
     db_field = FIELD_DB_MAP.get(field, field)
     current = account.get(db_field, '')
-    name = FIELD_FULL_NAMES.get(field, field)
+    name = get_field_label(field) or field
     await callback.message.edit_text(f"✏️ <b>{name}</b>\nТекущее: {current or '—'}\nВведите новое значение:")
     if field in ["bm","pl1","pl2","pl3"]:
         await callback.message.answer("📝 Введите число (можно с запятой):", reply_markup=get_numeric_kb(decimal=True))
@@ -1158,7 +1199,8 @@ async def send_account(callback: CallbackQuery):
     account = db.get_account_by_id(account_id)
     if not account: await callback.answer("❌ Аккаунт не найден", show_alert=True); return
     text = f"📊 <b>Данные:</b> {account['game_nickname']}\n"
-    for key, name in FIELD_FULL_NAMES.items():
+    for key in get_visible_fields():
+        name = get_field_label(key)
         if key == "nick": continue
         val = account.get(FIELD_DB_MAP.get(key, key), '')
         if val and val != '—': text += f"<b>{name}:</b> {val}\n"
