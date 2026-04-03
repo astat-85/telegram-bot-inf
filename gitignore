@@ -1,5 +1,48 @@
-he input shows only `.gitignore` was added, with no other file changes provided. Since there are no actual source files, build artifacts, dependencies, or temporary files listed in the changes, no additional ignore rules are needed beyond what might already be appropriate for a basic repository.
+```
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
 
-However, since the current .gitignore is empty and we have no specific project context from the file changes, I cannot determine if any standard patterns should apply.
+# Database
+*.db
 
-Output: (nothing)
+# Environment
+.env
+.env.local
+.env.*
+
+# Dependencies
+venv/
+.venv/
+node_modules/
+
+# Build artifacts
+dist/
+build/
+target/
+
+# Logs
+*.log
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Testing
+.pytest_cache/
+.mypy_cache/
+```
