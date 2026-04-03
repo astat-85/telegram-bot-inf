@@ -7,17 +7,17 @@
 # Структура: 'техническое_имя': {'name': 'Отображаемое имя', 'icon': 'Иконка'}
 # Если 'name' равен None — поле скрыто из интерфейса
 FIELD_CONFIG = {
-    'power': {'name': 'Сила', 'icon': '💪'},
-    'bm': {'name': 'Боевая мощь', 'icon': '⚔️'},
-    'pl1': {'name': 'Политика 1', 'icon': '🚩'},
-    'pl2': {'name': 'Политика 2', 'icon': '🚩'},
-    'pl3': {'name': 'Политика 3', 'icon': '🚩'},
+    'power': {'name': 'Эл', 'icon': '⚡'},
+    'bm': {'name': 'БМ', 'icon': '⚔️'},
+    'pl1': {'name': '1', 'icon': '🚩'},
+    'pl2': {'name': '2', 'icon': '🚩'},
+    'pl3': {'name': '3', 'icon': '🚩'},
     
     # Изменено: Дракон -> Маяк с новой иконкой
-    'dragon': {'name': 'Маяк', 'icon': '🗼'},
+    'dragon': {'name': 'М', 'icon': '🗼'},
     
-    'buffs_stands': {'name': 'Баф стройки', 'icon': '🏗️'},
-    'buffs_research': {'name': 'Баф исследования', 'icon': '🔬'},
+    'buffs_stands': {'name': 'БС', 'icon': '🏗️'},
+    'buffs_research': {'name': 'БИ', 'icon': '🔬'},
     
     # Новое поле (скрыто, пока не зададите name)
     'acceleration_buff': {'name': None, 'icon': '⚡'}, 
